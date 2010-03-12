@@ -1,0 +1,280 @@
+
+===============================
+LMirror - large scale mirroring
+===============================
+
+Copyright
+=========
+
+LMirror is Copyright (C) 2010 Robert Collins <robertc@robertcollins.net>
+
+LMirror is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program.  If not, see <http://www.gnu.org/licenses/>.
+
+In the LMirror source tree the file COPYING.txt contains the GNU General Public
+License version 3.
+
+Core concepts
+=============
+
+LMirror is a distributed, peer to peer system: any member (node) in an LMirror
+network can be configured to be either a receiver, a sender, or both. A
+directory structure to mirror is called a mirror set. Mirroring is a one way
+process - there has to be a 'root mirror' that originates all changes to be
+mirrored for a mirror set. A receiver can receive the same mirror set from
+multiple senders, and some (or all) of those senders can receive the mirror
+set back too. This permits redundancy in the mirror topology. At any point in
+time, a receiver will only receive a transmission from one sender.
+Transmissions can be initiated from senders (signal) or receivers (poll) and
+can be dumb (FTP/HTTP/NFS) or smart (LMirror). Signalling requires some way
+for senders to tell receivers to initiate a transmission; polling requires
+receivers to check on a regular basis. Both signalling and polling can be
+used at once. Mirror sets consist of configuration data and an LMirror managed
+collection of metadata which is used by LMirror to perform transmission of
+changes.
+
+Definitions
+-----------
+
+* Node: A configured mirror set on a machine.
+
+* Dumb protocol: When a transmission is done by accessing the LMirror metadata
+  over a simple virtual file system such as FTP/SFTP/plain HTTP, this is
+  referred to as using a Dumb protocol. In this mode all the logic executes on
+  the receiver.
+
+* Smart protocol: When a transmission is done by making RPC calls from an
+  LMirror process running on the receiver to an LMirror process running on the
+  sender, this is referred to as using a Smart protocol. The smart protocol
+  can eliminate many round trips that occur when using dumb protocols and is
+  generally a more efficient way to mirror.
+
+* Sender: A node which other nodes can receive updates from. By default
+  all nodes count as senders for dumb protocols, but specific configuration
+  is needed to permit a node to act as a smart sender.
+
+* Mirror set: A collection of files and directories to mirror. The definition
+  for a mirror set is stored in a .lmirror/sets/<name> directory typically
+  located at the top directory of the set. The definition for a mirror set
+  includes what directories and files to mirror, ordering constraints to use
+  when copying those files. The metadata that LMirror creates for a mirror set
+  is stored in .lmirror/metadata/<name>. This is usually adjacent to the set
+  definition but does not need to be.
+
+* Root node: The one (there must be one, and only one) node in a LMirror
+  network that is not configured to receive from any other nodes. This node
+  is the 'master' that introduces all changes to the network.
+
+* Transmission: The act of copying new changes from a sender to a receiver,
+  including updating of the metadata on the receiver to record that the
+  transmission has happened.
+
+* Signal trigger: Using a signal from the sender to trigger receivers to
+  perform a transmission. Signals can be anything which arranges for the
+  receiver to initiate a transmission: they can in principle include:
+
+  * email
+
+  * xmpp
+
+  * ssh
+
+  * ...
+
+  Currently LMirror has no signalling facility.
+
+* Poll trigger: Having receivers check for new changesets to be transmitted on
+  a regular basis (e.g. via cron).
+
+* Changeset: LMirror's description of the changes that have occured to a mirror
+  set. Changesets can be combined - if a mirror is three changesets out of date
+  then they will be combined and only a single transmission of the new or
+  changed files will occur. Changesets do not contain the file contents of
+  changed files - a file that is changed in every changeset will only have the
+  current version stored on disk.
+
+Design overview
+---------------
+
+See doc/DESIGN.txt for all the gory details. LMirror writes a changeset each
+time it is asked to prepare a change to a mirror set. Changesets provide a list
+of the file that were added/deleted/changed within the mirror set. LMirror then
+rolls all the contents of all the un-mirrored changesets into one large set of
+files to copy/delete, copies and deletes them. Files are written using a
+write-and-rename strategy to prevent readers of a file in a mirror set seeing a
+partial version of a file. Interruptions in a transmission are generally dealt
+with gracefully by starting over from the completed portion of the
+transmission.
+
+Getting started
+===============
+
+* Follow INSTALL.txt to install lmirror (or install from your platform's
+  packaging system).
+
+Running a receiver
+==================
+
+Most LMirror node configurations will be for receivers. To setup a receiver,
+run::
+
+ $ lmirror mirror URL/name [setsroot]
+
+This command reads the set definition from URL/.lmirror/sets/name, and writes
+it to $setsroot/.lmirror/sets/name. setsroot defaults to '.' It also sets up a
+metadir directory for the set and starts an initial transmission, which will
+[naturally] have to copy everything across. It is safe to interrupt lmirror as
+soon as the message 'Starting transmission' is output: you can run lmirror from
+cron or do a normal poll and lmirror will finish syncing up.
+
+Having configured the node, you need to arrange for mirror to be called again
+when you want the mirror set to be transmitted. One easy way to do this is
+cron. Other ways include registering with the sender in some way to have it
+signal when a new changeset is available. It is recommended that even if you
+are using signally, to have a low frequency poll enabled, in the event that
+a signal is missed due to e.g. network issues.
+
+The received mirror set can itself be mirrored from with no special daemon if
+you serve the set definition, metadata, and set content out over HTTP or some
+other lmirror supported dumb protocol. See 'Running a sender' for more detail.
+
+Running a sender
+================
+
+The second most common LMirror node configuration is that of a sender. Senders
+come in two forms: Dumb and smart. All mirror sets are capable of being a dumb
+sender with nearly no extra configuration.
+
+Dumb senders
+------------
+
+Dumb senders require the following directories to be served out over a VFS
+capable protocol (such as FTP, SFTP, HTTP,..):
+
+* .lmirror/sets/<name>
+
+* .lmirror/metadata/<name>
+
+* the set contents
+
+By default LMirror puts all three in the same directory hierarchy. For
+instance, if you were mirroring an Ubuntu archive, you might have a directory
+served out on your webserver at http://server/ubuntu/. If this directory
+contained:
+
+ dists
+ pool
+ indices
+ ls -lR.gz
+ project
+ .lmirror (containing both sets/ubuntu and metadata/ubuntu).
+
+Then that would be enough to allow receivers to run::
+
+ $ lmirror http://server/ubuntu/ubuntu
+
+The exact details of splitting the metadata and config out into different trees
+has not been decided yet, but the goal is to permit using CD-Roms and other
+meta as mirrorable sets even if they have not been published as that
+themselves.
+
+Smart senders
+-------------
+
+Smart senders require the same setup as a dumb sender in terms of config files
+and directory layout. However rather than publishing over a dumb protocol, a
+protocol that permits RPC calls is required (e.g. ssh where lmirror can be
+invoked on the server, or HTTP using POST to a CGI script). The primary
+advantage of smart senders is that network round trips can be eliminated - the
+lmirror process on the server can predict what data is needed and send it to
+the receiver. The down sides are:
+
+* Server is running lmirror, which might have bugs or security holes.
+
+* lmirror will take up some memory on the server for each client, which may
+  reduce the total number of clients you can mirror too (while making each
+  mirror run faster).
+
+Running a root node
+===================
+
+Root nodes are the point at which new changesets are created. LMirror provides
+a programming API to create new changesets directly, but the most common way
+that LMirror is used is to have LMirror scan the contents of a mirror set after
+some change is made to it, and publish the change as a changeset.
+
+As a root node does not receive from anywhere, it is not created by running
+``lmirror mirror``, rather it is created using init::
+
+ $ lmirror init [PATH/]NAME [CONTENT_ROOT]
+
+This will create a new mirror set called ``NAME`` at ``PATH`` (defaults to
+.)``/.lmirror/sets/NAME``. The mirror will be populated with the current
+contents of CONTENT_ROOT (defaults to .). You can customise exactly what and
+how is mirrored after this. To stop the initial population, hit ctrl-C after
+the message ``finishing change`` shows, and later run
+
+ $ lmirror finsh-change [PATH/]NAME
+
+when you are ready to give receivers content to mirror.
+
+Because receivers may be reading from the content as it is changed, LMirror has
+a flag which can be set in the metadata indicating that the mirror set is
+getting changed - when this is set, receivers will pause their transmission and
+probe for the update to finish. To signal that a change is being made run::
+
+ $ lmirror start-change [PATH/]NAME
+
+After the contents of your mirror set are updated to your satisfaction, tell
+lmirror that you have finished:
+
+ $ lmirror finish-change [PATH/]NAME
+
+This will scan the directory looking for files that have gone missing, have
+been altered (detected by the mtime stamp) or been added.
+
+If a change
+
+For instance, if you are updating an Ubuntu mirror, you might have this as your
+maintenance script::
+
+ #!/bin/sh
+ lmirror start-change Ubuntu
+ apt-ftparchive packages directory | gzip > Packages.gz
+ lmirror finish-change Ubuntu
+
+Each changeset takes up enough space to record the filenames of all the files
+added, deleted and changed and their sha256sum.
+
+LMirror keeps two full lists of all the files and directories: one for the
+starting point of the changesets in the set, and one for a recently recorded
+state of the mirror set. It then keeps as many changesets as it can until the
+size of the changesets exceeds the size of the two full lists. When that
+happens some of changesets are discarded, and the starting point full list is
+updated to have all of the discarded changesets included in it. The recent
+full list is updated whenever the time to apply the changesets that happened
+after it becomes significant. Generally no special maintenance should be neeed
+for the changeset list.
+
+Content rules
+-------------
+
+``.lmirror/sets/<name>/content.conf`` controls what contents are included in a
+mirror set. This file is a simple key-value list. Lines beginning with
+``include`` select paths to mirror, and ``exclude`` select paths to exclude.
+Excludes win over includes when a path is both included and excluded.
+
+Barriers
+--------
+
+``.lmirror/sets/<name>/ordering.conf`` controls the order in which changes in a
+changeset are applied. 

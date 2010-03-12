@@ -1,0 +1,249 @@
+
+===============================
+LMirror - large scale mirroring
+===============================
+
+Copyright
+=========
+
+LMirror is Copyright (C) 2010 Robert Collins <robertc@robertcollins.net>
+
+LMirror is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program.  If not, see <http://www.gnu.org/licenses/>.
+
+In the LMirror source tree the file COPYING.txt contains the GNU General Public
+License version 3.
+
+Problem statement
+=================
+
+Mirroring with RSync takes up a lot of CPU, and places a lot of load on
+the mirror servers: this is largely due to every mirror attempt
+repeating work proportional to the file count being mirrored: 20 mirrors
+mirroring once every 10 minutes will read the entire file tree 120 times
+- and push the active part of the tree out of cache pretty often. The
+load applied to the mirror servers is incurred at both ends: Both the
+master and the slave examine every file. Mirrors of Ubuntu are only
+requested to update 4 times a day - almost certainly related to the
+overhead of doing a mirror run, not to the total changes (because of
+delays building things its likely higher frequency runs will not grab
+much new content).
+
+Existing candidate solutions
+============================
+
+rsync
+-----
+
+Each client is a full scan of the area, no current provision for
+providing specific ordering, and no mechanism for dealing with
+concurrent updates + mirrors.
+
+offmirror
+---------
+
+The master has to know the exact state of each child - cannot do
+anonymous mirroring.
+
+zysnc
+-----
+
+Designed with the intent of copy very smartly with single file
+situations. Similar use case, and possibly we would want to use zsync as
+a component in a larger solution if we think that .iso mirroring will be
+aided by copying from previous dates. Not helpful for large file count
+situations.
+
+syrep
+-----
+
+Similar to offmirror; only seems to maintain a single state for the
+mirror set, no provision for maintaining a schema or integrity during a
+mirror action.
+
+ccollect
+--------
+
+Simply rsync + glue - nothing to minimise scanning overhead, and as it
+is intended to build hardlink farms will have huge IO needs in mirror
+situations.
+
+rsnapshot
+---------
+
+Another link farm approach.
+
+VCS
+---
+
+VCS solutions have two major problems (ignoring scaling):
+
+* they store indefinitely large amounts of history without expecting to discard
+  it: all file versions are stored, not just the current set.
+
+* they have a working area discrete from the mirror content, which is typically
+  about the same size.
+
+
+Use case
+========
+
+Make mirroring large structures such as Ubuntu archives be work
+proportional to the changes since a mirror run, rather than the total
+size of the archive + size of changes, and scale to many mirrors for a
+single master.
+
+RSync while very bandwidth efficient at handling changed files in a peer
+relationship has two intrinsic issues for mirroring of large collections
+of files in a star topology:
+
+* The entire contents of the mirror set are examined for every host
+  that wants to update, rather than every update that is being pushed.
+* RSync makes no particular guarantee about the order in which noticed
+  differences are propogated; this means that multiple RSync runs are
+  needed to preserve the invariants of some archive formats such as
+  the APT archive format.
+
+Broadly, we want to decouple 'what needs to be transmitted, and how'
+from 'what is the current state of the mirror'. Having it separated we
+can calculate the things to be transmitted to a slave by having the
+slave identify the state of the mirror it has in some fashion less
+intensive than reading the entire file system.
+
+Requirements
+------------
+
+* Command line tool able to mirror:
+
+ 1. locally
+
+ 1. over ssh
+
+ 1. over an assigned network port (e.g. via inet)
+
+
+* Be able to handle the sequence of changes needed to preserve our APT 
+  archive format integrity at every step during a mirror run today and
+  in the future: as long as there is a sequence of file operations that
+  preserve a repositories usefulness, be able to do that exact sequence
+  as part of the mirroring operation.
+
+* Be able to handle mirrors being slightly out of sync: if a mirror is
+  reading while the master updates, or if the master has updated twice
+  since the last time a given mirror updated, it should accomodate this
+  smoothly - and still be able to be configured not to break APT
+  archives.
+
+* Coordination: Various stages in a mirror process should emit signals
+  for coordination and reporting; in particular it should be possible to
+  get several machines [e.g. which have a single DNS alias] to perform
+  most of a mirror - copying new data, but not all, and to then
+  wait/exit-and-queue or something like that. This would be used so
+  that all machines in a rotation have the same new content before the
+  content is activated by finishing the sync. This might be built in
+  or something doable on top - no preference is assumed.
+
+
+Desires
+-------
+
+* Scale to many more mirrors reading from a host than RSync.
+
+* Support hierarchies efficiently. A->B->C should not require much 
+  effort to organise, nor much work on B.
+
+
+Constraints
+-----------
+
+* Be easy to troubleshoot and diagnose: design for sysadmins.
+
+* Be easy to operate: design for time-starved sysadmins.
+
+* Be no less efficient/robust than RSync. In particular memory
+  explosions and network destruction would be bad.
+
+
+Maybes or future things
+-----------------------
+
+* Hardlinking similar files
+
+* extended attribute support, fancy chmodding 
+
+* 'watching mode' where new mirror runs happen near-instantly.
+
+* client or server side bandwidth limiting (vs network policy limiting)
+
+* An API to permit the master changes to be programmatically assembled
+  rather than inferred - this would further reduce load.
+
+Assumptions
+-----------
+
+ * Few files (< 1%) in the mirror are altered; most are added or deleted.
+
+Candidate designs
+=================
+
+Journal based
+-------------
+
+Have a journal or recipe of changes to make. A simple format of
+instructions - straw man follows::
+
+  group packages # start a group
+  copy foo/bar    # copy a file - could include hash if desired.
+  # a missing file is an error unless a later action deletes it
+  copy foo/quux 
+  group metadata
+  wait packages
+  replace Sources.gz # could use old-hash, new-hash here if desired.
+  replace Sources.gz.asc
+  replace Releases
+  replace releases.asc
+  group cleanup
+  wait metadata
+  delete foo/quux.old
+
+
+Copying 2 or more journals would involve reading all the journals to
+process; combining them into a larger logical journal; processing up to
+the first synchronisation point - the wait statement; checking if there
+is another journal at that point, merging it if needed, and continuing.
+
+Getting started for this approach would involve rsyncing the mirror,
+then performing a sync starting from the sync journal before the rsync
+was initiated, and rolling forwards. Very stale mirrors - where
+contiguous journals are are not available - would start of rsyncing
+again.
+
+Journals would need to be garbage collected in some fashion.
+
+
+Directory listing approach
+--------------------------
+
+Run 'find .' or similar to list the entire directory structure to a
+single file, including datestamps and optionally hashes. Use rsync to
+mirror that one file - it should achieve very high efficiency as most of
+the file will be unchanged. Process that file and a local version of it
+to determine what other files need to be copied/deleted, then invoke
+rsync a file list, avoiding the tree walk per-client; synchronisation
+and ordering of specific files is done via multiple rsync sessions (but
+as specific files are being used, this isn't a significant overhead).
+
+Other
+-----
+
+Dunno yet!
+

@@ -1,0 +1,15 @@
+Installing lmirror
+==================
+
+* Install the build and runtime dependencies.
+* Run 'make check' to ensure it works on your machine.
+* Run 'sudo make install' to install it on your machine.
+
+Build dependencies
+------------------
+
+ * python-docutils (for rst2html)
+ * make
+
+Runtime dependencies
+--------------------
