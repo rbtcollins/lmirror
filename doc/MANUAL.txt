@@ -223,7 +223,7 @@ contents of CONTENT_ROOT (defaults to .). You can customise exactly what and
 how is mirrored after this. To stop the initial population, hit ctrl-C after
 the message ``finishing change`` shows, and later run
 
- $ lmirror finsh-change [PATH/]NAME
+ $ lmirror finish-change [PATH/]NAME
 
 when you are ready to give receivers content to mirror.
 

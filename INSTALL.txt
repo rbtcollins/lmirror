@@ -10,6 +10,11 @@ Build dependencies
 
  * python-docutils (for rst2html)
  * make
+ * bzrlib (only needed for nonreleased versions)
+ * testrepository
 
 Runtime dependencies
 --------------------
+
+ * Python (probably 2.4 or above, but no particular effort has been made for
+   compatibility).
