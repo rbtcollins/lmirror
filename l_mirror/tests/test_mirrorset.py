@@ -157,6 +157,18 @@ content_root = .
         mirror.finish_change()
         self.assertRaises(ValueError, mirror.finish_change)
 
+    def test_finish_change_no_change_no_new_journal(self):
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        ui = self.get_test_ui()
+        mirror = mirrorset.initialise(basedir, 'myname', basedir, ui)
+        mirror.finish_change()
+        mirror.start_change()
+        mirror.finish_change()
+        self.assertEqual('1', mirror._get_metadata().get('metadata', 'latest'))
+        self.assertEqual(('rest', 'No changes found in mirrorset.'),
+            ui.outputs[-1])
+
     def test_finish_change_scans_content(self):
         basedir = get_transport(self.setup_memory()).clone('path')
         basedir.create_prefix()

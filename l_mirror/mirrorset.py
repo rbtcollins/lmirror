@@ -129,10 +129,13 @@ class MirrorSet(object):
         updater = journals.DiskUpdater(current_state,
             self._content_root_dir(), last, self.ui)
         journal = updater.finished()
-        next_id = latest + 1
-        self._journaldir().put_bytes(str(next_id), journal.as_bytes())
-        metadata.set('metadata', 'latest', str(next_id))
-        metadata.set('metadata', 'timestamp', str(now))
+        if journal.paths:
+            next_id = latest + 1
+            self._journaldir().put_bytes(str(next_id), journal.as_bytes())
+            metadata.set('metadata', 'latest', str(next_id))
+            metadata.set('metadata', 'timestamp', str(now))
+        else:
+            self.ui.output_rest('No changes found in mirrorset.')
         metadata.set('metadata', 'updating', 'False')
         self._set_metadata(metadata)
 

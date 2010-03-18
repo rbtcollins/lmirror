@@ -20,3 +20,6 @@ Changes
 * Added lmirror start-change command which opens a change, permitting clients
   to not fail fatally when content is mismatched, but instead take a sensible
   action (such as pausing, spinning on the metadata, or rolling back quietly).
+
+* Fixed finish-change not to write a journal if there are no changes to
+  propogate.
