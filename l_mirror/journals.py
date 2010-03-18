@@ -190,8 +190,11 @@ class DiskUpdater(object):
             for name in tree_names - names:
                 # deletes
                 path = dirname and ('%s/%s' % (dirname, name)) or name
+                old_kind_details = cwd[name]
+                if type(old_kind_details) is dict:
+                    old_kind_details = ('dir',)
                 self.journal.add(path, 'del',
-                    cwd[name][1])
+                    old_kind_details)
             new_names = names - tree_names
             for name in names:
                 path = dirname and ('%s/%s' % (dirname, name)) or name
@@ -219,12 +222,15 @@ class DiskUpdater(object):
                     pending.append(path)
                 else:
                     raise ValueError('unknown kind %r for %r' % (kind, path))
-
                 if name in new_names:
                     self.journal.add(path, 'new', new_kind_details)
                 else:
-                    self.journal.add(path, 'replace', (cwd[name][1],
-                        new_kind_details))
+                    old_kind_details = cwd[name]
+                    if type(old_kind_details) is dict:
+                        old_kind_details = ('dir',)
+                    if old_kind_details != new_kind_details:
+                        self.journal.add(path, 'replace', (old_kind_details,
+                            new_kind_details))
         return self.journal
 
 
