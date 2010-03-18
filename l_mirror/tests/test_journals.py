@@ -356,8 +356,8 @@ class TestTransportReplay(ResourcedTestCase):
         replay = journals.TransportReplay(j1, sourcedir, basedir, ui)
         replay.replay()
         self.assertEqual([('get', 'new'), ('rename', 'new.lmirrortemp', 'new'),
-            ('get', 'abc'), ('delete', 'abc'), ('rename', 'abc.lmirrortemp',
-            'abc'), ('delete', 'bye')],
+            ('get', 'abc'), ('get', 'abc'), ('delete', 'abc'), ('rename',
+            'abc.lmirrortemp', 'abc'), ('delete', 'bye')],
             basedir._activity)
 
 

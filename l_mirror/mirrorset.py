@@ -150,6 +150,41 @@ class MirrorSet(object):
         metadata.set('metadata', 'updating', 'True')
         self._set_metadata(metadata)
 
+    def cancel_change(self):
+        """Cancel a scheduled change - simply unsets updating."""
+        metadata = self._get_metadata()
+        if metadata.get('metadata', 'updating') != 'True':
+            raise ValueError('No changeset open')
+        metadata.set('metadata', 'updating', 'False')
+        self._set_metadata(metadata)
+
+    def receive(self, another_mirrorset):
+        """Perform a receive from another_mirrorset."""
+        # XXX: check its a mirror of the same set. UUID or convergence?
+        metadata = self._get_metadata()
+        source_meta = another_mirrorset._get_metadata()
+        latest = int(metadata.get('metadata', 'latest'))
+        source_latest = int(source_meta.get('metadata', 'latest'))
+        # XXX: BASIS: basis handling needed here (and thats when we
+        # need non-overlapping syncing.
+        if source_latest > latest:
+            needed = range(latest + 1, source_latest + 1)
+            combiner = journals.Combiner()
+            source_journaldir = another_mirrorset._journaldir()
+            journal_dir = self._journaldir()
+            for journal_id in needed:
+                journal_bytes = source_journaldir.get_bytes(str(journal_id))
+                journal_dir.put_bytes(str(journal_id), journal_bytes)
+                journal = journals.parse(journal_bytes)
+                combiner.add(journal)
+            replayer = journals.TransportReplay(combiner.journal,
+                another_mirrorset.base, self.base, self.ui)
+            replayer.replay()
+            metadata.set('metadata', 'latest', str(source_latest))
+            metadata.set('metadata', 'timestamp',
+                source_meta.get('metadata', 'timestamp'))
+            self._set_metadata(metadata)
+
     def _combine_journals(self, start, stop):
         """Combine a number of journals to get a tree model."""
         model = journals.Combiner()

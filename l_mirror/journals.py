@@ -39,10 +39,11 @@ by reading the file content from a transport object.
 
 __all__ = ['parse', 'Combiner', 'Journal', 'DiskUpdater', 'TransportReplay']
 
+import errno
 import os
 from hashlib import sha1 as sha
 
-from bzrlib import osutils
+from bzrlib import errors, osutils
 
 
 class Combiner(object):
@@ -212,7 +213,7 @@ class DiskUpdater(object):
                 statinfo = self.transport.stat(path)
                 # Is it old enough to not check
                 mtime = getattr(statinfo, 'st_mtime', 0)
-                if self.last_timestamp - mtime > 3:
+                if self.last_timestamp - mtime > 3 and name not in new_names:
                     continue
                 kind = osutils.file_kind_from_stat_mode(statinfo.st_mode)
                 if kind == 'file':
@@ -384,6 +385,7 @@ class TransportReplay(object):
         # transform.
         # For now, simplest thing possible - want to get the concept performance
         # evaluated.
+        adds.sort()
         for path, content in adds:
             self.put_with_check(path, content)()
         replaces.sort(reverse=True)
@@ -403,6 +405,65 @@ class TransportReplay(object):
         deletes.sort(reverse=True)
         self.contentdir.delete_multi(path for path, content in deletes)
 
+    def ensure_dir(self, path):
+        """Ensure that path is a dir.
+
+        If the path exists and is not a dir, an error is raised.
+        """
+        try:
+            self.contentdir.mkdir(path)
+        except errors.FileExists:
+            st = self.contentdir.stat(path)
+            if osutils.file_kind_from_stat_mode(st.st_mode) != 'directory':
+                raise ValueError('unexpected non-directory at %r' % path)
+
+    def check_file(self, path, content):
+        """Check if there is a file at path with content.
+
+        :raises: ValueError if there a non-file at path.
+        :return: True if there is a file present with the right content.
+        """
+        try:
+            st = self.contentdir.stat(path)
+            if osutils.file_kind_from_stat_mode(st.st_mode) != 'file':
+                raise ValueError('unexpected non-file at %r' % path)
+            f = self.contentdir.get(path)
+            try:
+                size, sha1 = osutils.size_sha_file(f)
+            finally:
+                f.close()
+            return sha1 == content[1] and size == content[2]
+        except errors.NoSuchFile:
+            return False
+
+    def ensure_file(self, tempname, path, content):
+        """Ensure that there is a file with content content at path.
+
+        :param tempname: The name of a temporary file with the needed content.
+        """
+        if self.check_file(path, content):
+            # Note that this implies we copied a file we didn't - during
+            # a complete resync - sure, but still not optimal bw use.
+            self.contentdir.delete(tempname)
+        self.contentdir.rename(tempname, path)
+
+    def ensure_link(self, realpath, target):
+        """Ensure that realpath is a link to target.
+        
+        An error is raised if something is in the way.
+        """
+        try:
+            os.symlink(content[1], realpath)
+        except OSerror, e:
+            if e.errno == errno.EEXIST:
+                st = os.lstat(realpath)
+                if osutils.file_kind_from_stat_mode(st.st_mode) != 'symlink':
+                    raise ValueError('unexpected non-symlink at %r' % realpath)
+                os.unlink(realpath)
+                os.symlink(content[1], realpath)
+            else:
+                raise
+
     def put_with_check(self, path, content):
         """Put a_file at path checking it contains content.
 
@@ -413,12 +474,18 @@ class TransportReplay(object):
         """
         tempname = '%s.lmirrortemp' % path
         if content[0] == 'dir':
-            return lambda: self.contentdir.mkdir(path)
+            return lambda: self.ensure_dir(path)
         elif content[0] == 'symlink':
             realpath = self.sourcedir.local_abspath(path)
-            return lambda:os.symlink(content[1], realpath)
+            return lambda: self.ensure_link(realpath, content[1])
         elif content[0] != 'file':
             raise ValueError('unknown kind %r for %r' % (content[0], path))
+        # don't download content we don't need
+        try:
+            if self.check_file(path, content):
+                return lambda:None
+        except ValueError:
+            pass
         a_file = self.sourcedir.get(path)
         source = _ShaFile(a_file)
         try:
@@ -438,7 +505,7 @@ class TransportReplay(object):
                     path, source.sha1.hexdigest(), content[1]))
         finally:
             a_file.close()
-        return lambda: self.contentdir.rename(tempname, path)
+        return lambda: self.ensure_file(tempname, path, content)
 
 
 class _ShaFile(object):

@@ -190,3 +190,39 @@ updating = False
 """, ELLIPSIS))
         self.assertThat(t.get_bytes('journals/1'), DocTestMatches("""l-mirror-journal-1
 .lmirror\x00new\x00dir\x00.lmirror/sets\x00new\x00dir\x00.lmirror/sets/myname\x00new\x00dir\x00.lmirror/sets/myname/format\x00new\x00file\x00e5fa44f2b31c1fb553b6021e7360d07d5d91ff5e\x002\x00.lmirror/sets/myname/set.conf\x00new\x00file\x00061df21cf828bb333660621c3743cfc3a3b2bd23\x0023\x00abc\x00new\x00file\x0012039d6dd9a7e27622301e935b6eefc78846802e\x0011\x00dir1\x00new\x00dir\x00dir1/def\x00new\x00file\x001f8ac10f23c5b5bc1167bda84b833e5c057a77d2\x006\x00dir2\x00new\x00dir"""))
+    
+    def test_receive_replays_and_updates_metadata(self):
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        ui = self.get_test_ui()
+        # two journals exist from this simple operation - 0 and 1, but 
+        # need 3, as new clones start with 0
+        mirror = mirrorset.initialise(basedir, 'myname', basedir, ui)
+        basedir.create_prefix()
+        basedir.mkdir('dir1')
+        basedir.mkdir('dir2')
+        basedir.put_bytes('abc', '1234567890\n')
+        basedir.put_bytes('dir1/def', 'abcdef')
+        mirror.finish_change()
+        mirror.start_change()
+        basedir.put_bytes('dada', '123456789a\n')
+        mirror.finish_change()
+        clonedir = basedir.clone('../clone')
+        clonedir.create_prefix()
+        clone = mirrorset.initialise(clonedir, 'myname', clonedir, ui)
+        clone.cancel_change()
+        clone.receive(mirror)
+        mirrormeta = mirror._get_metadata()
+        metadata = clone._get_metadata()
+        self.assertEqual('2', metadata.get('metadata', 'latest'))
+        self.assertEqual(
+            mirrormeta.get('metadata', 'timestamp'),
+            metadata.get('metadata', 'timestamp'))
+        # check we got a file from each journal
+        self.assertEqual('123456789a\n', clonedir.get_bytes('dada'))
+        self.assertEqual('1234567890\n', clonedir.get_bytes('abc'))
+        # And the journals should be identical.
+        mirrorjournal = mirror._journaldir()
+        clonejournal = clone._journaldir()
+        self.assertEqual(mirrorjournal.get_bytes('1'), clonejournal.get_bytes('1'))
+        self.assertEqual(mirrorjournal.get_bytes('2'), clonejournal.get_bytes('2'))
