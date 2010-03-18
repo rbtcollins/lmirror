@@ -116,7 +116,7 @@ class MirrorSet(object):
     def finish_change(self):
         """Scan the mirror set for changes and write a new journal entry.
 
-        This will set update=False and update the timestamp in the metadata.
+        This will set updating=False and update the timestamp in the metadata.
         """
         metadata = self._get_metadata()
         if metadata.get('metadata', 'updating') != 'True':
@@ -134,6 +134,17 @@ class MirrorSet(object):
         metadata.set('metadata', 'latest', str(next_id))
         metadata.set('metadata', 'timestamp', str(now))
         metadata.set('metadata', 'updating', 'False')
+        self._set_metadata(metadata)
+
+    def start_change(self):
+        """Indicate to readers that changes are being made to the mirror.
+        
+        This simply sets updating=True in the metadata file.
+        """
+        metadata = self._get_metadata()
+        if metadata.get('metadata', 'updating') != 'False':
+            raise ValueError('Changeset already open')
+        metadata.set('metadata', 'updating', 'True')
         self._set_metadata(metadata)
 
     def _combine_journals(self, start, stop):

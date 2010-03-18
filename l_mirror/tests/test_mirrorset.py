@@ -131,18 +131,30 @@ content_root = .
 """))   
         self.assertRaises(ValueError, mirrorset.MirrorSet, basedir, 'myname', ui)
 
+    def test_start_change_updating_error(self):
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        ui = self.get_test_ui()
+        mirror = mirrorset.initialise(basedir, 'myname', basedir, ui)
+        self.assertRaises(ValueError, mirror.start_change)
+
+    def test_start_change_not_updating_starts_change(self):
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        ui = self.get_test_ui()
+        mirror = mirrorset.initialise(basedir, 'myname', basedir, ui)
+        mirror.finish_change()
+        mirror.start_change()
+        # We know finish_change errors if a change isn't open, so it working is
+        # sufficient.
+        mirror.finish_change()
+
     def test_finish_change_not_updating_error(self):
         basedir = get_transport(self.setup_memory()).clone('path')
         basedir.create_prefix()
         ui = self.get_test_ui()
         mirror = mirrorset.initialise(basedir, 'myname', basedir, ui)
-        t = basedir.clone('.lmirror/metadata/myname')
-        t.put_bytes('metadata.conf', """[metadata]
-basis = 0
-latest = 0
-timestamp = 0
-updating = False
-""")
+        mirror.finish_change()
         self.assertRaises(ValueError, mirror.finish_change)
 
     def test_finish_change_scans_content(self):

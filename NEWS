@@ -16,3 +16,7 @@ Changes
 * Added lmirror finish-change command which finishes an open change.
 
 * Fixed command lookup for finish-change so that it can be used.
+
+* Added lmirror start-change command which opens a change, permitting clients
+  to not fail fatally when content is mismatched, but instead take a sensible
+  action (such as pausing, spinning on the metadata, or rolling back quietly).

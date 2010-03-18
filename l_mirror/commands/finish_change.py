@@ -17,19 +17,26 @@
 # License version 3.
 # 
 
-"""Tests for commands."""
+"""Finish up an in progress change to a mirror set."""
 
-import unittest
+from bzrlib import urlutils
 
-def test_suite():
-    names = [
-        'commands',
-        'help',
-        'finish_change',
-        'start_change',
-        'init',
-        ]
-    module_names = ['l_mirror.tests.commands.test_' + name for name in
-        names]
-    loader = unittest.TestLoader()
-    return loader.loadTestsFromNames(module_names)
+from l_mirror.arguments import path
+from l_mirror.commands import Command
+from l_mirror import mirrorset
+
+class finish_change(Command):
+    """Finish an open change in a mirror set.
+    
+    Takes the mirror set to finish up a change on.
+    """
+
+    args = [path.PathArgument('mirror_set', min=1, max=1)]
+
+    def run(self):
+        transport = self.ui.arguments['mirror_set'][0]
+        base = transport.clone('..')
+        name = base.relpath(transport.base)
+        mirror = mirrorset.MirrorSet(base, name, self.ui)
+        mirror.finish_change()
+        return 0
