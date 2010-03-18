@@ -280,5 +280,7 @@ Excludes win over includes when a path is both included and excluded.
 Barriers
 --------
 
+**NB: Not implemented yet.**
+
 ``.lmirror/sets/<name>/ordering.conf`` controls the order in which changes in a
 changeset are applied. 
