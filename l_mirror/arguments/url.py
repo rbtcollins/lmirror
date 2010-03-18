@@ -17,18 +17,17 @@
 # License version 3.
 # 
 
-"""Tests for individual arguments."""
+"""An Argument that parses into bzrlib Transport objects."""
 
-import unittest
+__all__ = ['URLArgument']
 
-def test_suite():
-    names = [
-        'command',
-        'path',
-        'string',
-        'url',
-        ]
-    module_names = ['l_mirror.tests.arguments.test_' + name for name in
-        names]
-    loader = unittest.TestLoader()
-    return loader.loadTestsFromNames(module_names)
+from bzrlib.transport import get_transport
+
+from l_mirror.arguments import AbstractArgument
+
+
+class URLArgument(AbstractArgument):
+    """An argument that parses into bzrlib Transport objects."""
+
+    def _parse_one(self, arg):
+        return get_transport(arg)

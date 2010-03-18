@@ -17,18 +17,18 @@
 # License version 3.
 # 
 
-"""Tests for individual arguments."""
+"""Tests for the url argument type."""
 
-import unittest
+from bzrlib import transport
+from l_mirror.arguments import url
+from l_mirror.tests import ResourcedTestCase
 
-def test_suite():
-    names = [
-        'command',
-        'path',
-        'string',
-        'url',
-        ]
-    module_names = ['l_mirror.tests.arguments.test_' + name for name in
-        names]
-    loader = unittest.TestLoader()
-    return loader.loadTestsFromNames(module_names)
+
+class TestArgument(ResourcedTestCase):
+
+    def test_parses_as_transport(self):
+        arg = url.URLArgument('name')
+        result = arg.parse(['http://load/'])
+        self.assertEqual([transport.get_transport('http://load').base],
+            [result[0].base])
+        self.assertEqual(1, len(result))

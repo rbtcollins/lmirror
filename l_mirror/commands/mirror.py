@@ -21,7 +21,7 @@
 
 from bzrlib import urlutils
 
-from l_mirror.arguments import path
+from l_mirror.arguments import path, url
 from l_mirror.commands import Command
 from l_mirror import mirrorset
 
@@ -43,7 +43,7 @@ class mirror(Command):
     extremely fast.
     """
 
-    args = [path.PathArgument('source_mirror', min=1, max=1),
+    args = [url.URLArgument('source_mirror', min=1, max=1),
         path.PathArgument('target_mirror', min=1, max=1)]
 
     def run(self):
