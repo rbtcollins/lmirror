@@ -28,6 +28,7 @@ def test_suite():
         'finish_change',
         'start_change',
         'init',
+        'mirror',
         ]
     module_names = ['l_mirror.tests.commands.test_' + name for name in
         names]

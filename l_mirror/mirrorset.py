@@ -196,8 +196,11 @@ class MirrorSet(object):
     def _setdir(self):
         return self.base.clone('.lmirror/sets/%s' % self.name)
 
+    def content_root_path(self):
+        return self._get_settings().get('set', 'content_root')
+
     def _content_root_dir(self):
-        return self.base.clone(self._get_settings().get('set', 'content_root'))
+        return self.base.clone(self.content_root_path())
 
     def _metadata(self):
         """Get the transport for metadata."""

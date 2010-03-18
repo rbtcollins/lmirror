@@ -23,3 +23,5 @@ Changes
 
 * Fixed finish-change not to write a journal if there are no changes to
   propogate.
+
+* Added lmirror mirror command to perform a mirror run.

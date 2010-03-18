@@ -491,7 +491,7 @@ class TransportReplay(object):
         try:
             # FIXME: mode should be supplied from above, or use 0600 and chmod
             # later.
-            stream = self.contentdir.open_write_stream(tempname, '0644')
+            stream = self.contentdir.open_write_stream(tempname, 0644)
             try:
                 size = osutils.pumpfile(source, stream)
             finally:
