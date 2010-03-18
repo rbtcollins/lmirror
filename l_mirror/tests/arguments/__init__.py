@@ -24,6 +24,7 @@ import unittest
 def test_suite():
     names = [
         'command',
+        'path',
         'string',
         ]
     module_names = ['l_mirror.tests.arguments.test_' + name for name in

@@ -9,3 +9,6 @@ Changes
 +++++++
 
 * Added lmirror script and setup.py to install lmirror.
+
+* Added lmirror init command which creates a simple mirror set and makes an
+  initial journal.

@@ -17,17 +17,29 @@
 # License version 3.
 # 
 
-"""Tests for commands."""
+"""An Argument that parses into bzrlib LocalTransport objects."""
 
-import unittest
+__all__ = ['PathArgument']
 
-def test_suite():
-    names = [
-        'commands',
-        'help',
-        'init',
-        ]
-    module_names = ['l_mirror.tests.commands.test_' + name for name in
-        names]
-    loader = unittest.TestLoader()
-    return loader.loadTestsFromNames(module_names)
+from bzrlib.transport import get_transport
+from bzrlib.errors import NotLocalUrl
+
+from l_mirror.arguments import AbstractArgument
+
+
+class PathArgument(AbstractArgument):
+    """An argument that parses into bzrlib LocalTransport objects."""
+
+    def _parse_one(self, arg):
+        result = get_transport(arg)
+        # trigger a check that this is local
+        try:
+            result.local_abspath('.')
+        except NotLocalUrl, e:
+            if result.base.startswith('memory'):
+                # permit fortesting
+                pass
+            else:
+                raise
+        return result
+

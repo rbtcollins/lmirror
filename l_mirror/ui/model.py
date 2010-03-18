@@ -44,7 +44,7 @@ class UI(ui.AbstractUI):
     testing l_mirror commands.
     """
 
-    def __init__(self, input_streams=None, options=(), args={}):
+    def __init__(self, input_streams=None, options=(), args=()):
         """Create a model UI.
 
         :param input_streams: A list of stream name, bytes stream tuples to be

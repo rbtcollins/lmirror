@@ -42,20 +42,20 @@ Existing candidate solutions
 ============================
 
 rsync
------
++++++
 
 Each client is a full scan of the area, no current provision for
 providing specific ordering, and no mechanism for dealing with
 concurrent updates + mirrors.
 
 offmirror
----------
++++++++++
 
 The master has to know the exact state of each child - cannot do
 anonymous mirroring.
 
 zysnc
------
++++++
 
 Designed with the intent of copy very smartly with single file
 situations. Similar use case, and possibly we would want to use zsync as
@@ -64,26 +64,26 @@ aided by copying from previous dates. Not helpful for large file count
 situations.
 
 syrep
------
++++++
 
 Similar to offmirror; only seems to maintain a single state for the
 mirror set, no provision for maintaining a schema or integrity during a
 mirror action.
 
 ccollect
---------
+++++++++
 
 Simply rsync + glue - nothing to minimise scanning overhead, and as it
 is intended to build hardlink farms will have huge IO needs in mirror
 situations.
 
 rsnapshot
----------
++++++++++
 
 Another link farm approach.
 
 VCS
----
++++
 
 VCS solutions have two major problems (ignoring scaling):
 
@@ -120,7 +120,7 @@ slave identify the state of the mirror it has in some fashion less
 intensive than reading the entire file system.
 
 Requirements
-------------
+++++++++++++
 
 * Command line tool able to mirror:
 
@@ -154,7 +154,7 @@ Requirements
 
 
 Desires
--------
++++++++
 
 * Scale to many more mirrors reading from a host than RSync.
 
@@ -163,7 +163,7 @@ Desires
 
 
 Constraints
------------
++++++++++++
 
 * Be easy to troubleshoot and diagnose: design for sysadmins.
 
@@ -174,7 +174,7 @@ Constraints
 
 
 Maybes or future things
------------------------
++++++++++++++++++++++++
 
 * Hardlinking similar files
 
@@ -188,7 +188,7 @@ Maybes or future things
   rather than inferred - this would further reduce load.
 
 Assumptions
------------
++++++++++++
 
  * Few files (< 1%) in the mirror are altered; most are added or deleted.
 
@@ -196,7 +196,7 @@ Candidate designs
 =================
 
 Journal based
--------------
++++++++++++++
 
 Have a journal or recipe of changes to make. A simple format of
 instructions - straw man follows::
@@ -229,9 +229,26 @@ again.
 
 Journals would need to be garbage collected in some fashion.
 
+Journal implementation
+----------------------
+
+Configuration in .lmirror/sets/name/set.conf
+Metadata in .lmirror/metadata/name/metadata.conf
+Journals in .lmirror/metadata/name/journals/
+
+Metadata consists of:
+
+* basis journal - a journal against empty.
+* latest journal - the most recent journal written
+* timestamp - the timestamp that the most recent journal disk scan was started
+  at- used to avoid sha summing files on disk with older timestamps.
+* updating - flag to indicate if a changeset is being altered (and thus
+  mirroring mismatches are to be handled by waiting for the change to be
+  completed.)
+
 
 Directory listing approach
---------------------------
+++++++++++++++++++++++++++
 
 Run 'find .' or similar to list the entire directory structure to a
 single file, including datestamps and optionally hashes. Use rsync to
@@ -243,7 +260,7 @@ and ordering of specific files is done via multiple rsync sessions (but
 as specific files are being used, this isn't a significant overhead).
 
 Other
------
++++++
 
 Dunno yet!
 

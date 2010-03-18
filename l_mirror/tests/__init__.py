@@ -48,7 +48,9 @@ def test_suite():
     names = [
         'arguments',
         'commands',
+        'journals',
         'matchers',
+        'mirrorset',
         'monkeypatch',
         'ui',
         'setup',

@@ -1,0 +1,196 @@
+#
+# LMirror is Copyright (C) 2010 Robert Collins <robertc@robertcollins.net>
+# 
+# LMirror is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
+# 
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License along with
+# this program.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# In the LMirror source tree the file COPYING.txt contains the GNU General Public
+# License version 3.
+# 
+
+"""Mirrorset, the core of l_mirror.
+
+A MirrorSet is a node in a mirror network, and may be a root node if it has no
+sources defined.
+
+See the initialise function to create new MirrorSets, and MirrorSet for docs on
+working with a MirrorSet.
+"""
+
+__all__ = ['initialise', 'MirrorSet']
+
+import ConfigParser
+from StringIO import StringIO
+import time
+
+from bzrlib import urlutils
+from bzrlib.errors import NoSuchFile
+
+from l_mirror import journals
+
+
+def initialise(base, name, content_root, ui):
+    """Create a mirrorset at transport, called name, mirroring content_root.
+
+    :param base: The directory under which to put the mirror set
+        configuration and metadata. A bzrlib.transport.Transport.
+    :param name: The name of the mirrorset.
+    :param content_root: The root of the content to be mirrored. A
+        bzrlib.transport.Transport.
+    :param ui: A l_mirror.ui.AbstractUI.
+    :return: A MirrorSet object.
+    """
+    setdir = base.clone('.lmirror/sets/%s' % name)
+    setdir.create_prefix()
+    setdir.put_bytes('format', '1\n')
+    content_relative = urlutils.relative_url(base.base, content_root.base[:-1])
+    if not content_relative:
+        content_relative = '.'
+    setdir.put_bytes('set.conf', '[set]\ncontent_root = %s\n' % content_relative)
+    metadir = base.clone('.lmirror/metadata/%s' % name)
+    metadir.create_prefix()
+    metadir.put_bytes('format', '1\n')
+    metadir.put_bytes('metadata.conf', '[metadata]\nbasis = 0\nlatest = 0\ntimestamp = 0\nupdating = True\n')
+    journaldir = metadir.clone('journals')
+    journaldir.create_prefix()
+    journaldir.put_bytes('0', journals.Journal().as_bytes())
+    return MirrorSet(base, name, ui)
+
+
+class MirrorSet(object):
+    """A mirrorable directory structure - a set of files to be mirrored.
+
+    This is the primary model object in lmirror, using it one can manage mirror
+    definitions, perform syncs etc.
+
+    On disk a MirrorSet consists of configuration data in
+    <basedir>/.lmirror/sets/<name>/:
+    * format : Marker to allow compatibility.
+    * set.conf: The configuration file. This shoud have one section:
+      [set]
+      content_root=<relpath to root>
+    There is also state data in 
+    <basedir>/.lmirror/metadata/<name>/:
+    * format : Marker to allow compatibility.
+    * metadata.conf: The current metadata. This has one section:
+      [metadata]
+      basis=<id of earliest full journal>
+      latest=<id of latest journal>
+      timestamp=<timestamp that last journal scan started at; controls what
+        files are hashed and what just stated during a scan>
+      updating=True|False # if True clients know that the mirror source may
+        be out of sync with the metadata, and wait for that to get sorted.
+
+    :ivar base: The base directory.
+    :ivar name: The name of the mirror
+    :ivar ui: The AbstractUI output is fed to.
+    """
+
+    def __init__(self, base, name, ui):
+        """Open an existing MirrorSet.
+
+        :param base: A bzrlib.transport.Transport. The base directory where
+            the mirror definition can be found.
+        :param name: The name of the mirror set.
+        :param ui: An l_mirror.ui.AbstractUI.
+        """
+        try:
+            format = base.get_bytes('.lmirror/sets/%s/format' % name)
+        except NoSuchFile:
+            raise ValueError('No set %r - file not found' % name)
+        if format != '1\n':
+            raise ValueError('Unrecognised set format %r' % format)
+        self.base = base
+        self.name = name
+        self.ui = ui
+
+    def finish_change(self):
+        """Scan the mirror set for changes and write a new journal entry.
+
+        This will set update=False and update the timestamp in the metadata.
+        """
+        metadata = self._get_metadata()
+        if metadata.get('metadata', 'updating') != 'True':
+            raise ValueError('No changeset open')
+        last = float(metadata.get('metadata', 'timestamp'))
+        now = time.time()
+        basis = int(metadata.get('metadata', 'basis'))
+        latest = int(metadata.get('metadata', 'latest'))
+        current_state = self._combine_journals(basis, latest)
+        updater = journals.DiskUpdater(current_state,
+            self._content_root_dir(), last, self.ui)
+        journal = updater.finished()
+        next_id = latest + 1
+        self._journaldir().put_bytes(str(next_id), journal.as_bytes())
+        metadata.set('metadata', 'latest', str(next_id))
+        metadata.set('metadata', 'timestamp', str(now))
+        metadata.set('metadata', 'updating', 'False')
+        self._set_metadata(metadata)
+
+    def _combine_journals(self, start, stop):
+        """Combine a number of journals to get a tree model."""
+        model = journals.Combiner()
+        journaldir = self._journaldir()
+        for journal_id in range(start, stop + 1):
+            model.add(journals.parse(journaldir.get_bytes(str(journal_id))))
+        return model.as_tree()
+
+    def _setdir(self):
+        return self.base.clone('.lmirror/sets/%s' % self.name)
+
+    def _content_root_dir(self):
+        return self.base.clone(self._get_settings().get('set', 'content_root'))
+
+    def _metadata(self):
+        """Get the transport for metadata."""
+        return self.base.clone('.lmirror/metadata/%s' % self.name)
+
+    def _journaldir(self):
+        """Get the transport for journals."""
+        return self._metadata().clone('journals')
+
+    def _set_metadata(self, metadata):
+        """Update metadata on disk."""
+        output = StringIO()
+        metadata.write(output)
+        self._metadata().put_bytes('metadata.conf', output.getvalue())
+
+    def _get_metadata(self):
+        """Get a config parser with the metadata contents in it."""
+        parser = OrderedConfigParser()
+        parser.readfp(self._metadata().get('metadata.conf'))
+        return parser
+
+    def _get_settings(self):
+        """Get a config parser with the set config contents in it."""
+        parser = OrderedConfigParser()
+        parser.readfp(self._setdir().get('set.conf'))
+        return parser
+
+
+class OrderedConfigParser(ConfigParser.ConfigParser):
+    """Make write() not dictionary-order based."""
+
+    def write(self, fp):
+        """Write an .ini-format representation of the configuration state."""
+        if self._defaults:
+            fp.write("[%s]\n" % DEFAULTSECT)
+            for (key, value) in sorted(self._defaults.items()):
+                fp.write("%s = %s\n" % (key, str(value).replace('\n', '\n\t')))
+            fp.write("\n")
+        for section in self._sections:
+            fp.write("[%s]\n" % section)
+            for (key, value) in sorted(self._sections[section].items()):
+                if key != "__name__":
+                    fp.write("%s = %s\n" %
+                             (key, str(value).replace('\n', '\n\t')))
+            fp.write("\n")

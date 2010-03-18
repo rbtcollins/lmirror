@@ -17,17 +17,17 @@
 # License version 3.
 # 
 
-"""Tests for commands."""
+"""Tests for the path argument type."""
 
-import unittest
+from bzrlib import transport
+from l_mirror.arguments import path
+from l_mirror.tests import ResourcedTestCase
 
-def test_suite():
-    names = [
-        'commands',
-        'help',
-        'init',
-        ]
-    module_names = ['l_mirror.tests.commands.test_' + name for name in
-        names]
-    loader = unittest.TestLoader()
-    return loader.loadTestsFromNames(module_names)
+
+class TestArgument(ResourcedTestCase):
+
+    def test_parses_as_transport(self):
+        arg = path.PathArgument('name')
+        result = arg.parse(['load'])
+        self.assertEqual([transport.get_transport('load').base], [result[0].base])
+        self.assertEqual(1, len(result))
