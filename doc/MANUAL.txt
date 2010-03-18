@@ -219,7 +219,9 @@ As a root node does not receive from anywhere, it is not created by running
 
 This will create a new mirror set called ``NAME`` at ``PATH`` (defaults to
 .)``/.lmirror/sets/NAME``. The mirror will be populated with the current
-contents of CONTENT_ROOT (defaults to .). You can customise exactly what and
+contents of CONTENT_ROOT (defaults to PATH). Note that if the CONTENT_ROOT is
+not PATH then changes to the mirror set definition will not automatically
+propogate through the mirror network. You can customise exactly what and
 how is mirrored after this. To stop the initial population, hit ctrl-C after
 the message ``finishing change`` shows, and later run
 

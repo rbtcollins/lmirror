@@ -12,3 +12,5 @@ Changes
 
 * Added lmirror init command which creates a simple mirror set and makes an
   initial journal.
+
+* Added lmirror finish-change command which finishes an open change.

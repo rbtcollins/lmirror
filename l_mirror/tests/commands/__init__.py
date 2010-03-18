@@ -25,6 +25,7 @@ def test_suite():
     names = [
         'commands',
         'help',
+        'finish_change',
         'init',
         ]
     module_names = ['l_mirror.tests.commands.test_' + name for name in

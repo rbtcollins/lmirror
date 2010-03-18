@@ -26,7 +26,22 @@ from l_mirror.commands import Command
 from l_mirror import mirrorset
 
 class init(Command):
-    """Initialise a mirror set."""
+    """Initialise a mirror set.
+    
+    Take the place and name to create the mirror set, and optionally a 
+    different directory to replicate. Note that if the directory to
+    replicate is the same as the location of the mirror set configuration, then
+    config changes will automatically propogate - this is the default if you
+    just run (for example)::
+    
+      $ lmirror init /srv/ubuntu/ubuntu
+    
+    which will create a mirror set called ubuntu in /srv/ubuntu.
+
+    Creating a mirror set does a scan-and-hash of the entire contents of that
+    directory, so it will take time run about the same as tarring up the entire
+    directory.
+    """
 
     args = [path.PathArgument('mirror_set', min=1, max=1),
         path.PathArgument('content_root', min=0)]
