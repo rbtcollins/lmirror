@@ -270,6 +270,8 @@ for the changeset list.
 Content rules
 -------------
 
+**NB: Not implemented yet.**
+
 ``.lmirror/sets/<name>/content.conf`` controls what contents are included in a
 mirror set. This file is a simple key-value list. Lines beginning with
 ``include`` select paths to mirror, and ``exclude`` select paths to exclude.
