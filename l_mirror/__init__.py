@@ -24,6 +24,9 @@ This library is divided into some broad areas.
 The arguments package contains command argument parsing facilities.
 The commands package contains the main user entry points into the application.
 The ui package contains various user interfaces.
+The journals module contains logic for working with individual journals.
+The mirrorset module contains logic for working with a mirrorset - a thing to
+    be mirrored around.
 The tests package contains tests and test specific support code.
 """
 
