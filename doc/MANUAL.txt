@@ -43,7 +43,7 @@ collection of metadata which is used by LMirror to perform transmission of
 changes.
 
 Definitions
------------
++++++++++++
 
 * Node: A configured mirror set on a machine.
 
@@ -90,7 +90,7 @@ Definitions
 
   * ...
 
-  Currently LMirror has no signalling facility.
+  Currently LMirror has no built in signalling facility.
 
 * Poll trigger: Having receivers check for new changesets to be transmitted on
   a regular basis (e.g. via cron).
@@ -103,7 +103,7 @@ Definitions
   current version stored on disk.
 
 Design overview
----------------
++++++++++++++++
 
 See doc/DESIGN.txt for all the gory details. LMirror writes a changeset each
 time it is asked to prepare a change to a mirror set. Changesets provide a list
@@ -127,11 +127,11 @@ Running a receiver
 Most LMirror node configurations will be for receivers. To setup a receiver,
 run::
 
- $ lmirror mirror URL/name [setsroot]
+ $ lmirror mirror URL/name TARGETPATH
 
 This command reads the set definition from URL/.lmirror/sets/name, and writes
-it to $setsroot/.lmirror/sets/name. $setsroot defaults to '.'. The mirrored
-content is mirrored in the content_root path defined relative to $setsroot by
+it to $TARGETPATH/.lmirror/sets/name. $TARGETPATH defaults to '.'. The mirrored
+content is mirrored in the content_root path defined relative to $TARGETPATH by
 the mirror. The mirror command then sets up a metadir directory for the set and
 starts an initial transmission, which will [naturally] have to copy everything
 across. It is safe to interrupt lmirror as soon as the message 'Starting
@@ -157,7 +157,7 @@ come in two forms: Dumb and smart. All mirror sets are capable of being a dumb
 sender with nearly no extra configuration.
 
 Dumb senders
-------------
+++++++++++++
 
 Dumb senders require the following directories to be served out over a VFS
 capable protocol (such as FTP, SFTP, HTTP,..):
@@ -190,7 +190,7 @@ meta as mirrorable sets even if they have not been published as that
 themselves.
 
 Smart senders
--------------
++++++++++++++
 
 Smart senders require the same setup as a dumb sender in terms of config files
 and directory layout. However rather than publishing over a dumb protocol, a
@@ -270,7 +270,7 @@ after it becomes significant. Generally no special maintenance should be neeed
 for the changeset list.
 
 Content rules
--------------
++++++++++++++
 
 **NB: Not implemented yet.**
 
@@ -280,9 +280,32 @@ mirror set. This file is a simple key-value list. Lines beginning with
 Excludes win over includes when a path is both included and excluded.
 
 Barriers
---------
+++++++++
 
 **NB: Not implemented yet.**
 
 ``.lmirror/sets/<name>/ordering.conf`` controls the order in which changes in a
 changeset are applied. 
+
+How mirroring works
+===================
+
+The metadata for a mirrorset contains a list of journals that comprise the mirrorset. Mirroring involves:
+
+* Finding what journals need to be mirrored.
+
+* Copying those journals.
+
+* Using the content of those journals to decide what files need to be copied and deleted.
+
+* Copying new files, then modified files and finally deleting things that need to be deleted.
+
+* Updating the local metadata to indicate that the new journals have been synched.
+
+Copying of files
+++++++++++++++++
+
+When files are copying they are written to a temporary file called
+$FILENAME.lmirrortemp. After checking that the file has the expected sha1 it is
+renamed into place. If a partial update is interrupted it may leave these temp
+files. lmirror won't ever include these in a journal however. Currently mode, timestamp and permissions are not copied by lmirror - however this is very likely to change.
