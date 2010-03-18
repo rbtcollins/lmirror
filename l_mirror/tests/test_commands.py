@@ -81,6 +81,15 @@ class TestFindCommand(ResourcedTestCase):
         self.assertEqual('foo', cmd.name)
 
 
+class TestFindHyphenCommand(ResourcedTestCase):
+
+    resources = [('cmd', TemporaryCommandResource('foo_bar'))]
+
+    def test_looksupcommand_hypen(self):
+        cmd = commands._find_command('foo-bar')
+        self.assertIsInstance(cmd(None), commands.Command)
+
+
 class TestIterCommands(ResourcedTestCase):
 
     resources = [

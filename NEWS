@@ -14,3 +14,5 @@ Changes
   initial journal.
 
 * Added lmirror finish-change command which finishes an open change.
+
+* Fixed command lookup for finish-change so that it can be used.
