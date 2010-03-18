@@ -32,9 +32,15 @@ eliminated.
 
 DiskUpdater is a class to compare a memory 'tree' and a bzr transport and 
 output a journal to update the tree to match the transport.
+
+Various Replay objects can replay a journal. TransportReplay replays a journal
+by reading the file content from a transport object.
 """
 
-__all__ = ['parse', 'Combiner', 'Journal', 'DiskUpdater']
+__all__ = ['parse', 'Combiner', 'Journal', 'DiskUpdater', 'TransportReplay']
+
+import os
+from hashlib import sha1 as sha
 
 from bzrlib import osutils
 
@@ -198,7 +204,8 @@ class DiskUpdater(object):
             new_names = names - tree_names
             for name in names:
                 path = dirname and ('%s/%s' % (dirname, name)) or name
-                if path.endswith('.lmirror/metadata'):
+                if (path.endswith('.lmirror/metadata') or
+                    path.endswith('.lmirrortemp')):
                     # metadata is transmitted by the act of fetching the
                     # journal.
                     continue
@@ -329,3 +336,128 @@ def parse(a_bytestring):
             kind_data = kind_data1, kind_data2
         result.add(path, action, kind_data)
     return result
+
+
+class TransportReplay(object):
+    """Replay a journal reading content from a transport.
+
+    The replay() method is the main interface.
+    
+    :ivar sourcedir: The transport to read from.
+    :ivar contentdir: The transport to apply changes to.
+    :ivar journal: The journal to apply.
+    :ivar ui: A UI for reporting with.
+    """
+
+    def __init__(self, journal, sourcedir, contentdir, ui):
+        """Create a TransportReplay for journal from sourcedir to contentdir.
+
+        :param journal: The journal to replay.
+        :param sourcedir: The transport to read from.
+        :param contentdir: The transport to apply changes to.
+        :param ui: The ui to use for reporting.
+        """
+        self.journal = journal
+        self.sourcedir = sourcedir
+        self.contentdir = contentdir
+        self.ui = ui
+
+    def replay(self):
+        """Replay the journal."""
+        adds = []
+        deletes = []
+        replaces = []
+        for path, (action, content) in self.journal.paths.iteritems():
+            if action == 'new':
+                adds.append((path, content))
+            elif action == 'del':
+                deletes.append((path, content))
+            elif action == 'replace':
+                replaces.append((path, content[0], content[1]))
+            else:
+                raise ValueError('unknown action %r for %r' % (action, path))
+        # Ordering /can/ be more complex than just adds/replace/deletes:
+        # might have an add blocked on a replace making a dir above it. Likewise
+        # A delete might have to happen before a replace when a dir becomes a 
+        # file. When we do smarter things, we'll have to just warn that we may
+        # not honour general goals/policy if the user has given us such a
+        # transform.
+        # For now, simplest thing possible - want to get the concept performance
+        # evaluated.
+        for path, content in adds:
+            self.put_with_check(path, content)()
+        replaces.sort(reverse=True)
+        to_rename = []
+        try:
+            for path, _, new_content in replaces:
+                # TODO: (again, to do with replacing files with dirs:)
+                #       do not delay creating dirs needed for files below them.
+                to_rename.append(self.put_with_check(path, new_content))
+            for path, old_content, new_content in replaces:
+                # TODO: we may want to warn or perhaps have a strict mode here.
+                self.contentdir.delete(path)
+        finally:
+            for doit in to_rename:
+                doit()
+        # Children go first :)
+        deletes.sort(reverse=True)
+        self.contentdir.delete_multi(path for path, content in deletes)
+
+    def put_with_check(self, path, content):
+        """Put a_file at path checking it contains content.
+
+        :param path: A relpath.
+        :param content: A content description of a file.
+        :return: A callable that will execute the rename-into-place - all the
+            IO has been done before returning.
+        """
+        tempname = '%s.lmirrortemp' % path
+        if content[0] == 'dir':
+            return lambda: self.contentdir.mkdir(path)
+        elif content[0] == 'symlink':
+            realpath = self.sourcedir.local_abspath(path)
+            return lambda:os.symlink(content[1], realpath)
+        elif content[0] != 'file':
+            raise ValueError('unknown kind %r for %r' % (content[0], path))
+        a_file = self.sourcedir.get(path)
+        source = _ShaFile(a_file)
+        try:
+            # FIXME: mode should be supplied from above, or use 0600 and chmod
+            # later.
+            stream = self.contentdir.open_write_stream(tempname, '0644')
+            try:
+                size = osutils.pumpfile(source, stream)
+            finally:
+                stream.close()
+            # TODO: here is where we should check for a mirror-is-updating
+            # case.
+            if size != content[2] or source.sha1.hexdigest() != content[1]:
+                self.contentdir.delete(tempname)
+                raise ValueError(
+                    'read incorrect content for %r, got sha %r wanted %r' % (
+                    path, source.sha1.hexdigest(), content[1]))
+        finally:
+            a_file.close()
+        return lambda: self.contentdir.rename(tempname, path)
+
+
+class _ShaFile(object):
+    """Pretend to be a file, calculating the sha and size.
+    
+    After reading from this file, access the sha1 and size attributes to
+    get the sha and size.
+
+    XXX: I'm sure this is a dup with something bzrlib or somewhere else. Find
+    and reuse.
+
+    :ivar sha1: A sha1 object.
+    """
+
+    def __init__(self, a_file):
+        self.a_file = a_file
+        self.sha1 = sha()
+
+    def read(self, amount=None):
+        result = self.a_file.read(amount)
+        self.sha1.update(result)
+        return result

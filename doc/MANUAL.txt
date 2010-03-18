@@ -130,18 +130,20 @@ run::
  $ lmirror mirror URL/name [setsroot]
 
 This command reads the set definition from URL/.lmirror/sets/name, and writes
-it to $setsroot/.lmirror/sets/name. setsroot defaults to '.' It also sets up a
-metadir directory for the set and starts an initial transmission, which will
-[naturally] have to copy everything across. It is safe to interrupt lmirror as
-soon as the message 'Starting transmission' is output: you can run lmirror from
-cron or do a normal poll and lmirror will finish syncing up.
+it to $setsroot/.lmirror/sets/name. $setsroot defaults to '.'. The mirrored
+content is mirrored in the content_root path defined relative to $setsroot by
+the mirror. The mirror command then sets up a metadir directory for the set and
+starts an initial transmission, which will [naturally] have to copy everything
+across. It is safe to interrupt lmirror as soon as the message 'Starting
+transmission' is output: you can run lmirror from cron or do a normal poll and
+lmirror will finish syncing up.
 
 Having configured the node, you need to arrange for mirror to be called again
-when you want the mirror set to be transmitted. One easy way to do this is
-cron. Other ways include registering with the sender in some way to have it
-signal when a new changeset is available. It is recommended that even if you
-are using signally, to have a low frequency poll enabled, in the event that
-a signal is missed due to e.g. network issues.
+with the same arguments when you want the mirror set to be transmitted. One
+easy way to do this is cron. Other ways include registering with the sender in
+some way to have it signal when a new changeset is available. It is recommended
+that even if you are using signally, to have a low frequency poll enabled, in
+the event that a signal is missed due to e.g. network issues.
 
 The received mirror set can itself be mirrored from with no special daemon if
 you serve the set definition, metadata, and set content out over HTTP or some

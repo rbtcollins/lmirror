@@ -325,6 +325,42 @@ class TestJournal(ResourcedTestCase):
 1234\0replace\0symlink\0foo bar/baz\0file\0e935b6eefc78846802e12039d6dd9a7e27622301\0000\x00abc\0new\0file\00012039d6dd9a7e27622301e935b6eefc78846802e\00011\0abc/def\0del\0dir""", j1.as_bytes())
 
 
+class TestTransportReplay(ResourcedTestCase):
+
+    def setup_memory(self):
+        """Create a memory url server and return its url."""
+        # XXX: integrate with ui.here better.
+        self.transport_factory = MemoryServer()
+        self.transport_factory.start_server()
+        self.addCleanup(self.transport_factory.stop_server)
+        return self.transport_factory.get_url()
+
+    def test_orders_new_replace_delete(self):
+        # new-replace-delete is a sane default order.
+        basedir = get_transport('trace+' + self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        basedir.put_bytes('abc', 'def')
+        basedir.put_bytes('bye', 'by')
+        sourcedir = basedir.clone('../source')
+        sourcedir.create_prefix()
+        sourcedir.put_bytes('abc', '123412341234')
+        sourcedir.put_bytes('new', '12341234')
+        j1 = journals.Journal()
+        j1.add('abc', 'replace', (
+            ('file', '12039d6dd9a7e27622301e935b6eefc78846802e', 3),
+            ('file', '5a78babbb162531b3a16c55310a4e7228d68f2e9', 12)))
+        j1.add('bye', 'del', ('file', 'd', 2))
+        j1.add('new', 'new', ('file', 'c129b324aee662b04eccf68babba85851346dff9', 8))
+        del basedir._activity[:]
+        ui = UI()
+        replay = journals.TransportReplay(j1, sourcedir, basedir, ui)
+        replay.replay()
+        self.assertEqual([('get', 'new'), ('rename', 'new.lmirrortemp', 'new'),
+            ('get', 'abc'), ('delete', 'abc'), ('rename', 'abc.lmirrortemp',
+            'abc'), ('delete', 'bye')],
+            basedir._activity)
+
+
 class TestParser(ResourcedTestCase):
 
     def test_parse_demo(self):
