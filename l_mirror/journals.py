@@ -405,7 +405,7 @@ class TransportReplay(object):
         deletes.sort(reverse=True)
         for path,content in deletes:
             try:
-                if content[0] != dir:
+                if content[0] != 'dir':
                     self.contentdir.delete(path)
                 else:
                     self.contentdir.rmdir(path)
