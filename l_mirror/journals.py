@@ -403,7 +403,11 @@ class TransportReplay(object):
                 doit()
         # Children go first :)
         deletes.sort(reverse=True)
-        self.contentdir.delete_multi(path for path, content in deletes)
+        self.contentdir.delete_multi(path for path, content in deletes if content[0] != 'dir')
+        for path, content in deletes:
+            if content[0] != 'dir':
+                continue
+            self.contentdir.rmdir(path)
 
     def ensure_dir(self, path):
         """Ensure that path is a dir.
