@@ -199,6 +199,7 @@ class DiskUpdater(object):
                 path = dirname and ('%s/%s' % (dirname, name)) or name
                 old_kind_details = cwd[name]
                 if type(old_kind_details) is dict:
+                    self._gather_deleted_dir(path, cwd[name])
                     old_kind_details = ('dir',)
                 self.journal.add(path, 'del',
                     old_kind_details)
@@ -240,6 +241,18 @@ class DiskUpdater(object):
                         self.journal.add(path, 'replace', (old_kind_details,
                             new_kind_details))
         return self.journal
+
+    def _gather_deleted_dir(self, path, dirdict):
+        # List what the tree thought it had as deletes.
+        pending = [(path, dirdict)]
+        while pending:
+            dirname, cwd = pending.pop(-1)
+            for name, old_kind_details in cwd:
+                path = dirname and ('%s/%s' % (dirname, name)) or name
+                if type(old_kind_details) is dict:
+                    pending.append((path, old_kind_details))
+                    old_kind_details = ('dir',)
+                self.journal.add(path, 'del', old_kind_details)
 
 
 class Journal(object):
