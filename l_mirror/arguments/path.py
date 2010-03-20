@@ -40,6 +40,6 @@ class PathArgument(AbstractArgument):
                 # permit fortesting
                 pass
             else:
-                raise
+                raise ValueError('Not a local path: %r' % arg)
         return result
 

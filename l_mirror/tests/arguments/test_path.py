@@ -31,3 +31,7 @@ class TestArgument(ResourcedTestCase):
         result = arg.parse(['load'])
         self.assertEqual([transport.get_transport('load').base], [result[0].base])
         self.assertEqual(1, len(result))
+
+    def test_NotLocal_raises_ValueError(self):
+        arg = path.PathArgument('name')
+        self.assertRaises(ValueError, arg.parse, ['http://foo/'])

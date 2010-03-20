@@ -25,3 +25,6 @@ Changes
   propogate.
 
 * Added lmirror mirror command to perform a mirror run.
+
+* Parsing PATH arguments which are not local no longer causes a traceback. 
+  (Robert Collins, #542413)
