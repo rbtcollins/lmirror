@@ -240,6 +240,9 @@ class DiskUpdater(object):
                     if old_kind_details != new_kind_details:
                         self.journal.add(path, 'replace', (old_kind_details,
                             new_kind_details))
+        for path, (action, details) in self.journal.paths.iteritems():
+            self.ui.output_log(4, __name__, 'Journalling action %s for %r' % (
+                action, path))
         return self.journal
 
     def _gather_deleted_dir(self, path, dirdict):
@@ -410,6 +413,8 @@ class TransportReplay(object):
                 to_rename.append(self.put_with_check(path, new_content))
             for path, old_content, new_content in replaces:
                 # TODO: we may want to warn or perhaps have a strict mode here.
+                # e.g. handle already deleted things. This should become clear
+                # when recovery mode is done.
                 self.contentdir.delete(path)
         finally:
             for doit in to_rename:
@@ -417,6 +422,7 @@ class TransportReplay(object):
         # Children go first :)
         deletes.sort(reverse=True)
         for path,content in deletes:
+            self.ui.output_log(4, __name__, 'Deleting %s %r' % (content[0], path))
             try:
                 if content[0] != 'dir':
                     self.contentdir.delete(path)
@@ -486,7 +492,7 @@ class TransportReplay(object):
                 raise
 
     def put_with_check(self, path, content):
-        """Put a_file at path checking it contains content.
+        """Put a_file at path checking that as received it matches content.
 
         :param path: A relpath.
         :param content: A content description of a file.
@@ -494,6 +500,7 @@ class TransportReplay(object):
             IO has been done before returning.
         """
         tempname = '%s.lmirrortemp' % path
+        self.ui.output_log(4, __name__, 'Writing %s %r' % (content[0], path))
         if content[0] == 'dir':
             return lambda: self.ensure_dir(path)
         elif content[0] == 'symlink':
