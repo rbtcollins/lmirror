@@ -50,6 +50,8 @@ def initialise(base, name, content_root, ui):
     :return: A MirrorSet object.
     """
     setdir = base.clone('.lmirror/sets/%s' % name)
+    ui.output_log(8, 'l_mirror.mirrorset', 'Creating mirrorset %s at %s'
+        % (name, base.base))
     setdir.create_prefix()
     setdir.put_bytes('format', '1\n')
     content_relative = urlutils.relative_url(base.base, content_root.base[:-1])

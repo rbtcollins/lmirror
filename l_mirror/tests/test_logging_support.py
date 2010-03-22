@@ -39,7 +39,7 @@ class TestLoggingSetup(ResourcedTestCase):
         c_log, f_log, formatter = logging_support.configure_logging(out)
         self.assertEqual(c_log, logging.root.handlers[0])
         self.assertEqual(f_log, logging.root.handlers[1])
-        self.assertEqual(formatter, c_log.formatter)
+        self.assertEqual(None, c_log.formatter)
         self.assertEqual(formatter, f_log.formatter)
         self.assertEqual(time.gmtime, formatter.converter)
         self.assertEqual("%Y-%m-%d %H:%M:%SZ", formatter.datefmt)

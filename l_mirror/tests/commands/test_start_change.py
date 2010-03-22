@@ -56,7 +56,7 @@ class TestCommandStartChange(ResourcedTestCase):
         t.create_prefix()
         root = t.base + 'myname'
         ui, cmd = self.get_test_ui_and_cmd((root,))
-        mirror = mirrorset.initialise(t, 'myname', t, ui)
+        mirror = mirrorset.initialise(t, 'myname', t, UI())
         self.assertEqual(3, cmd.execute())
         self.assertEqual(1, len(ui.outputs))
         self.assertEqual('error', ui.outputs[0][0])

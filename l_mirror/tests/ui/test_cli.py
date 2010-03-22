@@ -94,7 +94,7 @@ class TestCLIUI(ResourcedTestCase):
         ui, cmd = self.get_test_ui_and_cmd()
         ui.output_log(5, 'my.self', 'line')
         self.assertThat(ui._stdout.getvalue(),
-            DocTestMatches("""...Z: line\n""", doctest.ELLIPSIS))
+            DocTestMatches("""line\n""", doctest.ELLIPSIS))
 
     def test_outputs_rest_to_stdout(self):
         ui, cmd = self.get_test_ui_and_cmd()

@@ -37,10 +37,10 @@ def configure_logging(console_stream, f_path="~/.cache/lmirror/log"):
         testing). Use None to disable file logging.
     :return (console_log_handler, file_log_handler, formatter).
     """
-    formatter = logging.Formatter("%(asctime)s: %(message)s", "%Y-%m-%d %H:%M:%SZ")
-    formatter.converter = time.gmtime
+    f_formatter = logging.Formatter("%(asctime)s: %(message)s", "%Y-%m-%d %H:%M:%SZ")
+    f_formatter.converter = time.gmtime
     console_handler = logging.StreamHandler(console_stream)
-    console_handler.setFormatter(formatter)
+    # console_handler.setFormatter(formatter)
     # Capture root events
     logger = logging.getLogger()
     logger.addHandler(console_handler)
@@ -53,8 +53,8 @@ def configure_logging(console_stream, f_path="~/.cache/lmirror/log"):
             t = transport.get_transport(f_path).clone('..')
             t.create_prefix()
         file_handler = logging.FileHandler(f_path)
-        file_handler.setFormatter(formatter)
+        file_handler.setFormatter(f_formatter)
         logger.addHandler(file_handler)
-    return console_handler, file_handler, formatter
+    return console_handler, file_handler, f_formatter
 
     return None, None, None
