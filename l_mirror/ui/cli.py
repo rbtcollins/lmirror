@@ -21,34 +21,53 @@
 
 __all__ = ['UI', 'run_argv']
 
+import logging
 from optparse import OptionParser
 import os
 import sys
 
 from l_mirror import commands, ui
+from l_mirror import logging_support
 
 
 class UI(ui.AbstractUI):
     """A command line user interface."""
 
-    def __init__(self, argv, stdin, stdout, stderr):
+    def __init__(self, argv, stdin, stdout, stderr, no_logfile=False):
         """Create a command line UI.
+
+        This UI logs to ~/.cache/lmirror/log for levels 8 and 9 by default,
+        and level 5 and up to the console.
 
         :param argv: Arguments from the process invocation.
         :param stdin: The stream for stdin.
         :param stdout: The stream for stdout.
         :param stderr: The stream for stderr.
+        ;param no_logfile: Disable default ~/.cache/lmirror/log logfile.
         """
         self._argv = argv
         self._stdin = stdin
         self._stdout = stdout
         self._stderr = stderr
+        if no_logfile:
+            args = [None]
+        else:
+            args = []
+        self._c_log, self._f_log, self._log_formatter = \
+            logging_support.configure_logging(self._stdout, *args)
+        self._c_log.setLevel(5)
+        if self._f_log is not None:
+            self._f_log.setLevel(8)
 
     def _iter_streams(self, stream_type):
         yield self._stdin
 
     def output_error(self, error_tuple):
         self._stderr.write(str(error_tuple[1]) + '\n')
+
+    def output_log(self, level, section, line):
+        logger = logging.getLogger(section)
+        logger.log(level, line)
 
     def output_rest(self, rest_string):
         self._stdout.write(rest_string)

@@ -27,14 +27,14 @@ import time
 
 from bzrlib import transport
 
-def configure_logging(console_stream, f_path=None):
+def configure_logging(console_stream, f_path="~/.cache/lmirror/log"):
     """Configure a formatter and create a console and file handlers.
 
     The formatter is setup for ISO8601 UTC logging.
 
     :param console_stream: A stream to log to for console events.
     :param f_path: Optional path to configure for the file logging (used in
-        testing).
+        testing). Use None to disable file logging.
     :return (console_log_handler, file_log_handler, formatter).
     """
     formatter = logging.Formatter("%(asctime)s: %(message)s", "%Y-%m-%d %H:%M:%SZ")
@@ -44,13 +44,17 @@ def configure_logging(console_stream, f_path=None):
     # Capture root events
     logger = logging.getLogger()
     logger.addHandler(console_handler)
-    f_path = f_path or os.path.expanduser("~/.cache/lmirror/log")
-    if not os.path.exists(f_path):
-        t = transport.get_transport(f_path).clone('..')
-        t.create_prefix()
-    file_handler = logging.FileHandler(f_path)
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+    logger.setLevel(0)
+    if f_path is None:
+        file_handler = None
+    else:
+        f_path = os.path.expanduser(f_path)
+        if not os.path.exists(f_path):
+            t = transport.get_transport(f_path).clone('..')
+            t.create_prefix()
+        file_handler = logging.FileHandler(f_path)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
     return console_handler, file_handler, formatter
 
     return None, None, None

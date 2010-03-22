@@ -31,16 +31,20 @@ import l_mirror.arguments.string
 from l_mirror import commands
 from l_mirror.ui import cli
 from l_mirror.tests import ResourcedTestCase
+from l_mirror.tests.logging_resource import LoggingResourceManager
 from l_mirror.tests.monkeypatch import monkeypatch
+from l_mirror.tests.stubhome import StubHomeResource
 
 
 class TestCLIUI(ResourcedTestCase):
+
+    resources = [('logging', LoggingResourceManager())]
 
     def get_test_ui_and_cmd(self):
         stdout = StringIO()
         stdin = StringIO()
         stderr = StringIO()
-        ui = cli.UI([], stdin, stdout, stderr)
+        ui = cli.UI([], stdin, stdout, stderr, no_logfile=True)
         cmd = commands.Command(ui)
         ui.set_command(cmd)
         return ui, cmd
@@ -85,6 +89,12 @@ class TestCLIUI(ResourcedTestCase):
         ui = cli.UI([], stdin, stdout, stderr)
         ui.output_error(err_tuple)
         self.assertThat(stderr.getvalue(), DocTestMatches(expected))
+
+    def test_outputs_log_to_stdout(self):
+        ui, cmd = self.get_test_ui_and_cmd()
+        ui.output_log(5, 'my.self', 'line')
+        self.assertThat(ui._stdout.getvalue(),
+            DocTestMatches("""...Z: line\n""", doctest.ELLIPSIS))
 
     def test_outputs_rest_to_stdout(self):
         ui, cmd = self.get_test_ui_and_cmd()
@@ -189,3 +199,27 @@ class TestRunArgv(ResourcedTestCase):
         self.stub__find_command(lambda x:1)
         self.assertEqual(1, cli.run_argv(['lmirror', 'foo'], 'in', 'out',
             'err'))
+
+
+class TestCLILogFile(ResourcedTestCase):
+
+    resources = [('logging', LoggingResourceManager()), 
+        ('homedir', StubHomeResource())]
+
+    def get_test_ui_and_cmd(self):
+        stdout = StringIO()
+        stdin = StringIO()
+        stderr = StringIO()
+        ui = cli.UI([], stdin, stdout, stderr)
+        cmd = commands.Command(ui)
+        ui.set_command(cmd)
+        return ui, cmd
+
+    def test_outputs_log_to_homedir(self):
+        ui, cmd = self.get_test_ui_and_cmd()
+        ui.output_log(8, 'my.self', 'line')
+        ui.output_log(7, 'my.self', 'not logged line')
+        content = file(self.homedir.tempdir + '/.cache/lmirror/log', 'rb').read()
+        self.assertThat(content,
+            DocTestMatches("""...Z: line\n""", doctest.ELLIPSIS))
+

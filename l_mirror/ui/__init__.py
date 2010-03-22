@@ -97,6 +97,22 @@ class AbstractUI(object):
         """
         raise NotImplementedError(self.output_error)
 
+    def output_log(self, level, section, line):
+        """Show a log message.
+
+        This is used to show some unstructured text, which may go to a log file
+        on disk, the console, a trace window or whatever. 
+
+        :param level: How important the message is to show. 1 is not at all
+            urgent, 9 is as urgent as it gets. Most UI's will show 5 and above
+            by default. The CLI UI logs levels 8 and 9 only to
+            ~/.cache/lmirror/log.
+        :param section: A free text string for categorisation, can be used by
+            UI's to do per-section levels (but none do so today).
+        :param line: A line to log.
+        """
+        raise NotImplementedError(self.output_log)
+
     def output_rest(self, rest_string):
         """Show rest_string - a ReST document.
 

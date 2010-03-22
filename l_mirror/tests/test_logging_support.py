@@ -48,12 +48,7 @@ class TestLoggingSetup(ResourcedTestCase):
         self.assertEqual(logging.FileHandler, f_log.__class__)
         self.assertEqual(os.path.expanduser("~/.cache/lmirror/log"), f_log.baseFilename)
 
-
-class TestFilenameChoice(TestLoggingSetup):
-
-    resources = list(TestLoggingSetup.resources) + [('path', TempDirResource())]
-
-    def test_can_supply_filename(self):
+    def test_can_supply_filename_None(self):
         out = StringIO()
-        c_log, f_log, formatter = logging_support.configure_logging(out, self.path + '/log')
-        self.assertEqual(self.path + '/log', f_log.baseFilename)
+        c_log, f_log, formatter = logging_support.configure_logging(out, None)
+        self.assertEqual(None, f_log)

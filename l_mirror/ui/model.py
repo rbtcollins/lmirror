@@ -44,13 +44,14 @@ class UI(ui.AbstractUI):
     testing l_mirror commands.
     """
 
-    def __init__(self, input_streams=None, options=(), args=()):
+    def __init__(self, input_streams=None, options=(), args=(), log_level=4):
         """Create a model UI.
 
         :param input_streams: A list of stream name, bytes stream tuples to be
             used as the available input streams for this ui.
         :param options: Options to explicitly set values for.
         :param args: The argument values to give the UI.
+        :param log_level: Log level to filter on by default.
         """
         self.input_streams = {}
         if input_streams:
@@ -62,6 +63,7 @@ class UI(ui.AbstractUI):
         self.outputs = []
         # Could take parsed args, but for now this is easier.
         self.unparsed_args = args
+        self.log_level = log_level
 
     def _check_cmd(self):
         options = list(self.unparsed_opts)
@@ -94,6 +96,10 @@ class UI(ui.AbstractUI):
 
     def output_error(self, error_tuple):
         self.outputs.append(('error', error_tuple))
+
+    def output_log(self, level, section, line):
+        if level > self.log_level:
+            self.outputs.append(('log', level, section, line))
 
     def output_rest(self, rest_string):
         self.outputs.append(('rest', rest_string))

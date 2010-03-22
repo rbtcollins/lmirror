@@ -29,6 +29,8 @@ Changes
 * Parsing PATH arguments which are not local no longer causes a traceback. 
   (Robert Collins, #542413)
 
+* CLI UI can now log messages to ~/.cache/lmirror/log, and to the console.
+
 API Changes
 +++++++++++
 

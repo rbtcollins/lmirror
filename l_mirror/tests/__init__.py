@@ -57,6 +57,7 @@ def test_suite():
         'ui',
         'setup',
         'stubpackage',
+        'stubhome',
         ]
     module_names = ['l_mirror.tests.test_' + name for name in names]
     loader = unittest.TestLoader()

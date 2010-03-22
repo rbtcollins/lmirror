@@ -29,6 +29,8 @@ import l_mirror.arguments.command
 from l_mirror.commands import commands as cmd_commands
 from l_mirror.ui import cli, model
 from l_mirror.tests import ResourcedTestCase
+from l_mirror.tests.logging_resource import LoggingResourceManager
+from l_mirror.tests.stubhome import StubHomeResource
 
 
 def cli_ui_factory(input_streams=None, options=(), args=()):
@@ -48,12 +50,13 @@ def cli_ui_factory(input_streams=None, options=(), args=()):
         # only bool handled so far
         if value:
             argv.append('--%s' % option)
-    return cli.UI(argv, stdin, stdout, stderr)
+    return cli.UI(argv, stdin, stdout, stderr, no_logfile=True)
 
 
 # what ui implementations do we need to test?
 ui_implementations = [
-    ('CLIUI', {'ui_factory': cli_ui_factory}),
+    ('CLIUI', {'ui_factory': cli_ui_factory,
+        'resources':[('logging', LoggingResourceManager())]}),
     ('ModelUI', {'ui_factory': model.UI}),
     ]
 
@@ -101,6 +104,11 @@ class TestUIContract(ResourcedTestCase):
             err_tuple = sys.exc_info()
         ui = self.get_test_ui()
         ui.output_error(err_tuple)
+
+    def test_output_log(self):
+        # output a log message - plain text with no particular structure
+        ui = self.get_test_ui()
+        ui.output_log(0, 'my.section', 'message')
 
     def test_output_rest(self):
         # output some ReST - used for help and docs.
