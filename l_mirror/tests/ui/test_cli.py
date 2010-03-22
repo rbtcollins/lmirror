@@ -53,13 +53,13 @@ class TestCLIUI(ResourcedTestCase):
         stdout = StringIO()
         stdin = StringIO()
         stderr = StringIO()
-        ui = cli.UI([], stdin, stdout, stderr)
+        ui = cli.UI([], stdin, stdout, stderr, no_logfile=True)
 
     def test_stream_comes_from_stdin(self):
         stdout = StringIO()
         stdin = StringIO('foo\n')
         stderr = StringIO()
-        ui = cli.UI([], stdin, stdout, stderr)
+        ui = cli.UI([], stdin, stdout, stderr, no_logfile=True)
         cmd = commands.Command(ui)
         cmd.input_streams = ['content']
         ui.set_command(cmd)
@@ -72,10 +72,19 @@ class TestCLIUI(ResourcedTestCase):
         stdout = StringIO()
         stdin = StringIO('foo\n')
         stderr = StringIO()
-        ui = cli.UI(['-d', '/nowhere/'], stdin, stdout, stderr)
+        ui = cli.UI(['-d', '/nowhere/'], stdin, stdout, stderr, no_logfile=True)
         cmd = commands.Command(ui)
         ui.set_command(cmd)
         self.assertEqual('/nowhere/', ui.here)
+
+    def test_global_option_dash_v_changes_log_level(self):
+        stdout = StringIO()
+        stdin = StringIO()
+        stderr = StringIO()
+        ui = cli.UI(['-v'], stdin, stdout, stderr, no_logfile=True)
+        cmd = commands.Command(ui)
+        ui.set_command(cmd)
+        self.assertEqual(4, ui._c_log.level)
 
     def test_outputs_error_string(self):
         try:
@@ -86,7 +95,7 @@ class TestCLIUI(ResourcedTestCase):
         stdout = StringIO()
         stdin = StringIO()
         stderr = StringIO()
-        ui = cli.UI([], stdin, stdout, stderr)
+        ui = cli.UI([], stdin, stdout, stderr, no_logfile=True)
         ui.output_error(err_tuple)
         self.assertThat(stderr.getvalue(), DocTestMatches(expected))
 
@@ -122,7 +131,7 @@ class TestCLIUI(ResourcedTestCase):
         stdout = StringIO()
         stdin = StringIO()
         stderr = StringIO()
-        ui = cli.UI(['one'], stdin, stdout, stderr)
+        ui = cli.UI(['one'], stdin, stdout, stderr, no_logfile=True)
         cmd = commands.Command(ui)
         cmd.args = [arguments.command.CommandArgument('foo')]
         ui.set_command(cmd)
@@ -132,7 +141,7 @@ class TestCLIUI(ResourcedTestCase):
         stdout = StringIO()
         stdin = StringIO()
         stderr = StringIO()
-        ui = cli.UI(['one'], stdin, stdout, stderr)
+        ui = cli.UI(['one'], stdin, stdout, stderr, no_logfile=True)
         cmd = commands.Command(ui)
         ui.set_command(cmd)
         self.assertEqual("Unexpected arguments: ['one']\n", stderr.getvalue())
@@ -141,7 +150,8 @@ class TestCLIUI(ResourcedTestCase):
         stdout = StringIO()
         stdin = StringIO()
         stderr = StringIO()
-        ui = cli.UI(['one', '--', '--two', 'three'], stdin, stdout, stderr)
+        ui = cli.UI(['one', '--', '--two', 'three'], stdin, stdout, stderr,
+            no_logfile=True)
         cmd = commands.Command(ui)
         cmd.args = [arguments.string.StringArgument('args', max=None)]
         ui.set_command(cmd)

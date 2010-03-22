@@ -31,6 +31,8 @@ Changes
 
 * CLI UI can now log messages to ~/.cache/lmirror/log, and to the console.
 
+* -v will now increase verbosity for all commands.
+
 API Changes
 +++++++++++
 

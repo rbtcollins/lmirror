@@ -134,11 +134,16 @@ class UI(ui.AbstractUI):
         parser.add_option("-q", "--quiet", action="store_true", default=False,
             help="Turn off output other than the primary output for a command "
             "and any errors.")
+        parser.add_option("-v", "--verbose", action="count", dest="verbosity",
+            help="Show more detail about program progression on stdout and in "
+            "custom log files.")
         for option in self.cmd.options:
             parser.add_option(option)
         options, args = parser.parse_args(self._argv)
         self.here = options.here
         self.options = options
+        if self.options.verbosity:
+            self._c_log.setLevel(self._c_log.level - self.options.verbosity)
         orig_args = list(args)
         parsed_args = {}
         failed = False
