@@ -123,6 +123,9 @@ class MirrorSet(object):
         metadata = self._get_metadata()
         if metadata.get('metadata', 'updating') != 'True':
             raise ValueError('No changeset open')
+        self.ui.output_log(5, 'l_mirror.mirrorset',
+            'finishing change of mirror set %s at %s' % 
+            (self.name, self.base.base))
         last = float(metadata.get('metadata', 'timestamp'))
         now = time.time()
         basis = int(metadata.get('metadata', 'basis'))
@@ -149,6 +152,9 @@ class MirrorSet(object):
         metadata = self._get_metadata()
         if metadata.get('metadata', 'updating') != 'False':
             raise ValueError('Changeset already open')
+        self.ui.output_log(5, 'l_mirror.mirrorset',
+            'Marking mirror %s at %s as updating' %
+            (self.name, self.base.base))
         metadata.set('metadata', 'updating', 'True')
         self._set_metadata(metadata)
 
@@ -157,12 +163,19 @@ class MirrorSet(object):
         metadata = self._get_metadata()
         if metadata.get('metadata', 'updating') != 'True':
             raise ValueError('No changeset open')
+        self.ui.output_log(5, 'l_mirror.mirrorset',
+            'Marking mirror %s at %s as not updating' %
+            (self.name, self.base.base))
         metadata.set('metadata', 'updating', 'False')
         self._set_metadata(metadata)
 
     def receive(self, another_mirrorset):
         """Perform a receive from another_mirrorset."""
         # XXX: check its a mirror of the same set. UUID or convergence?
+        self.ui.output_log(5, 'l_mirror.mirrorset', 
+            'Starting transmission from mirror %s at %s to %s at %s' %
+            (another_mirrorset.name, another_mirrorset.base.base, self.name,
+             self.base.base))
         metadata = self._get_metadata()
         source_meta = another_mirrorset._get_metadata()
         latest = int(metadata.get('metadata', 'latest'))
@@ -171,6 +184,7 @@ class MirrorSet(object):
         # need non-overlapping syncing.
         if source_latest > latest:
             needed = range(latest + 1, source_latest + 1)
+            new_journals = len(needed)
             combiner = journals.Combiner()
             source_journaldir = another_mirrorset._journaldir()
             journal_dir = self._journaldir()
@@ -179,6 +193,7 @@ class MirrorSet(object):
                 journal_dir.put_bytes(str(journal_id), journal_bytes)
                 journal = journals.parse(journal_bytes)
                 combiner.add(journal)
+            changed_paths = len(combiner.journal.paths)
             replayer = journals.TransportReplay(combiner.journal,
                 another_mirrorset.base, self.base, self.ui)
             replayer.replay()
@@ -186,6 +201,14 @@ class MirrorSet(object):
             metadata.set('metadata', 'timestamp',
                 source_meta.get('metadata', 'timestamp'))
             self._set_metadata(metadata)
+        else:
+            changed_paths = 0
+            new_journals = 0
+        self.ui.output_log(5, 'l_mirror.mirrorset', 
+            'Received %d path changes in %d journals from mirror %s at '
+            ' %s to %s at %s' %
+            (changed_paths, new_journals, another_mirrorset.name,
+             another_mirrorset.base.base, self.name, self.base.base))
 
     def _combine_journals(self, start, stop):
         """Combine a number of journals to get a tree model."""

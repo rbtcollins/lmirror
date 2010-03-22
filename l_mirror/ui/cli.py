@@ -36,7 +36,7 @@ class UI(ui.AbstractUI):
     def __init__(self, argv, stdin, stdout, stderr, no_logfile=False):
         """Create a command line UI.
 
-        This UI logs to ~/.cache/lmirror/log for levels 8 and 9 by default,
+        This UI logs to ~/.cache/lmirror/log for level 3 and up by default,
         and level 5 and up to the console.
 
         :param argv: Arguments from the process invocation.
@@ -57,7 +57,7 @@ class UI(ui.AbstractUI):
             logging_support.configure_logging(self._stdout, *args)
         self._c_log.setLevel(5)
         if self._f_log is not None:
-            self._f_log.setLevel(8)
+            self._f_log.setLevel(3) # log more than the UI, but not everything.
 
     def _iter_streams(self, stream_type):
         yield self._stdin

@@ -218,7 +218,7 @@ class TestCLILogFile(ResourcedTestCase):
     def test_outputs_log_to_homedir(self):
         ui, cmd = self.get_test_ui_and_cmd()
         ui.output_log(8, 'my.self', 'line')
-        ui.output_log(7, 'my.self', 'not logged line')
+        ui.output_log(2, 'my.self', 'not logged line')
         content = file(self.homedir.tempdir + '/.cache/lmirror/log', 'rb').read()
         self.assertThat(content,
             DocTestMatches("""...Z: line\n""", doctest.ELLIPSIS))
