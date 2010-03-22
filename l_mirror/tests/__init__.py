@@ -49,6 +49,8 @@ def test_suite():
         'arguments',
         'commands',
         'journals',
+        'logging_resource',
+        'logging_support',
         'matchers',
         'mirrorset',
         'monkeypatch',

@@ -28,3 +28,11 @@ Changes
 
 * Parsing PATH arguments which are not local no longer causes a traceback. 
   (Robert Collins, #542413)
+
+API Changes
++++++++++++
+
+* New test helper logging_resource for working with the logging module.
+
+* New module ``l_mirror.logging_support`` containing glue to get logging up and
+  running.
