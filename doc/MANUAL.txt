@@ -224,8 +224,9 @@ This will create a new mirror set called ``NAME`` at ``PATH`` (defaults to
 contents of CONTENT_ROOT (defaults to PATH). Note that if the CONTENT_ROOT is
 not PATH then changes to the mirror set definition will not automatically
 propogate through the mirror network. You can customise exactly what and
-how is mirrored after this. To stop the initial population, hit ctrl-C after
-the message ``finishing change`` shows, and later run
+how is mirrored after this. To skip the initial population you can supply the
+``--empty`` option, or just hit ctrl-C after the message ``finishing change``
+shows. Either way, you should later run
 
  $ lmirror finish-change [PATH/]NAME
 

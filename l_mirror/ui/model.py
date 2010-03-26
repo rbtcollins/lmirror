@@ -49,7 +49,8 @@ class UI(ui.AbstractUI):
 
         :param input_streams: A list of stream name, bytes stream tuples to be
             used as the available input streams for this ui.
-        :param options: Options to explicitly set values for.
+        :param options: Options to explicitly set values for. A list of
+            (option, value) items.
         :param args: The argument values to give the UI.
         :param log_level: Log level to filter on by default.
         """

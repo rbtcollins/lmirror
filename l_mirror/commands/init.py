@@ -19,6 +19,8 @@
 
 """Initialise a mirror set."""
 
+from optparse import Option
+
 from bzrlib import urlutils
 
 from l_mirror.arguments import path
@@ -45,6 +47,11 @@ class init(Command):
 
     args = [path.PathArgument('mirror_set', min=1, max=1),
         path.PathArgument('content_root', min=0)]
+    options = [Option("--empty", dest="empty", help="Create the new mirror set"
+        " as empty. This is useful when you intend to customise and tuen the"
+        " filters for it and don't want to wait for an initial scan to take"
+        " place.", action="store_true", default=False)
+        ]
 
     def run(self):
         transport = self.ui.arguments['mirror_set'][0]
@@ -55,5 +62,6 @@ class init(Command):
         else:
             content_root = self.ui.arguments['content_root'][0]
         mirror = mirrorset.initialise(base, name, content_root, self.ui)
-        mirror.finish_change()
+        if not self.ui.options.empty:
+            mirror.finish_change()
         return 0

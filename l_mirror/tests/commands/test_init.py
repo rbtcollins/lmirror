@@ -34,8 +34,8 @@ from l_mirror.tests import ResourcedTestCase
 
 class TestCommandCommands(ResourcedTestCase):
 
-    def get_test_ui_and_cmd(self, args):
-        ui = UI(args=args)
+    def get_test_ui_and_cmd(self, args, options=()):
+        ui = UI(args=args, options=options)
         cmd = init.init(ui)
         ui.set_command(cmd)
         return ui, cmd
@@ -69,6 +69,29 @@ class TestCommandCommands(ResourcedTestCase):
         # TODO make this accessible via MirrorSet object.
         self.assertThat(t.get_bytes('set.conf'), DocTestMatches("""[set]
 content_root = ../content
+"""))
+
+    def test_empty_does_not_scan(self):
+        base = self.setup_memory()
+        root = base + 'path/myname'
+        t = get_transport(base)
+        t = t.clone('path')
+        contentdir = t
+        contentdir.create_prefix()
+        contentdir.mkdir('dir1')
+        contentdir.mkdir('dir2')
+        contentdir.put_bytes('abc', '1234567890\n')
+        contentdir.put_bytes('dir1/def', 'abcdef')
+        ui, cmd = self.get_test_ui_and_cmd((root,), [('empty', True)])
+        self.assertEqual(0, cmd.execute())
+        t = t.clone('.lmirror/metadata/myname')
+        self.assertThat(t.get_bytes('metadata.conf'), DocTestMatches("""[metadata]
+basis = 0
+latest = 0
+timestamp = ...
+updating = True
+""", ELLIPSIS))
+        self.assertThat(t.get_bytes('journals/0'), DocTestMatches("""l-mirror-journal-1
 """))
 
     def test_scans_content_root(self):
