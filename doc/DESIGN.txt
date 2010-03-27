@@ -275,3 +275,48 @@ Other
 
 Dunno yet!
 
+Data control/propogaton/visibility model
+========================================
+
+Something that seems common between any approach is how customisation and
+filtering fit in. For instance, the originator of some content to mirror may
+wish to break up a large disk structure into smaller sets of data to mirror,
+and then someone mirroring that content may wish to only mirror a subset of one
+of those sets. A concrete example: Ubuntu's master archive includes every 
+architecture for which Ubuntu is built on the official servers, but it is split
+into 'support' and 'ports' at the source, before anyone mirrors from it. After
+being split it is publically mirrored, and some mirrors further filter what
+they carry, for instance by carrying just i386 and amd64 builds. Because
+journals are distinct from content, and we want journals to be indentical in
+all nodes in a mirror network (for integrity checking and performance),
+filtering done by individual nodes needs to explicitly propogate/be
+introspectable.
+
+Other configuration data, just as authentication credentials may be per-node.
+
+Accordingly, we have the following sorts of data to deal with:
+
+Set public
+++++++++++
+
+The main data about a mirror set. The name, filter rules used when making the
+set, well known URLs for P2P trackers and the like. GPG configuration for the
+set.
+
+Node private
+++++++++++++
+
+User credentials, local policy such as polling configuration, and potentially
+root node filtering rules. This should be stored in ~/.config/lmirror/.
+
+Node public-local
++++++++++++++++++
+
+Non propogating public data about a node. Last mirror run, locally available
+journals, alternative urls for the node. Stored in
+.lmirror/metadata/<set>/metadata.conf or similar.
+
+Node public-propogating
++++++++++++++++++++++++
+
+Propogating public data about a node. Filters applied by this node.
