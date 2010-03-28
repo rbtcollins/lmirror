@@ -132,7 +132,7 @@ class MirrorSet(object):
         latest = int(metadata.get('metadata', 'latest'))
         current_state = self._combine_journals(basis, latest)
         updater = journals.DiskUpdater(current_state,
-            self._content_root_dir(), last, self.ui)
+            self._content_root_dir(), self.name, last, self.ui)
         journal = updater.finished()
         if journal.paths:
             next_id = latest + 1

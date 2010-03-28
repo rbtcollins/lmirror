@@ -42,6 +42,7 @@ __all__ = ['parse', 'Combiner', 'Journal', 'DiskUpdater', 'TransportReplay']
 import errno
 import os
 from hashlib import sha1 as sha
+import re
 
 from bzrlib import errors, osutils
 
@@ -154,13 +155,28 @@ class DiskUpdater(object):
         unchanged.
     :ivar ui: A ui object to send output to.
     :ivar journal: The journal being built up.
+    :ivar name: The name of the mirror set the journal will be updating. Used
+        to include the mirror definition.
+    :ivar include_re: The compiled re that, when it matches, indicates a path
+        should be included.
+    :ivar exclude_re: The compield re that, when it matches, indicates a path
+        should only be included if it also matches the include_re. Note that
+        only the exact path is considered: if you have an exclude rule '^foo'
+        and an include rule '^foo/bar', once the directory 'foo' is excluded,
+        'foo/bar' will not be examined and thus wont end up included. To deal
+        with cases like that, either use a negative lookahead instead - exclude
+        '^foo/(?!bar(?$|/)', or exclude paths starting with foo, and include
+        both foo and bar explicitly: exclude '^foo(?:$|/)' and include '^foo$',
+        '^foo/bar(?$|/)'.
     """
 
-    def __init__(self, tree, transport, last_timestamp, ui):
+    def __init__(self, tree, transport, name, last_timestamp, ui):
         """Create a DiskUpdater.
 
         :param tree: The tree to compare with.
         :param transport: The transport to read disk data from.
+        :param name: The mirror set name, used to include its config in the
+            mirror definition.
         :param last_timestamp: The timestamp of the most recent journal: all
             files modified more than 3 seconds before this timestamp are
             assumed to be unchanged. 3 seconds is chosen because it is larger
@@ -169,9 +185,13 @@ class DiskUpdater(object):
         """
         self.tree = tree
         self.transport = transport
+        self.name = name
         self.last_timestamp = last_timestamp
         self.ui = ui
         self.journal = Journal()
+        self.include_re = re.compile(
+            r'(?:^|/)\.lmirror/sets(?:$|/%s(?:$|/))' % name)
+        self.exclude_re = re.compile(r'(?:^|/)\.lmirror/')
 
     def finished(self):
         """Return the journal obtained by scanning the disk."""
@@ -206,10 +226,7 @@ class DiskUpdater(object):
             new_names = names - tree_names
             for name in names:
                 path = dirname and ('%s/%s' % (dirname, name)) or name
-                if (path.endswith('.lmirror/metadata') or
-                    path.endswith('.lmirrortemp')):
-                    # metadata is transmitted by the act of fetching the
-                    # journal.
+                if self._skip_path(path):
                     continue
                 statinfo = self.transport.stat(path)
                 # Is it old enough to not check
@@ -256,6 +273,17 @@ class DiskUpdater(object):
                     pending.append((path, old_kind_details))
                     old_kind_details = ('dir',)
                 self.journal.add(path, 'del', old_kind_details)
+
+    def _skip_path(self, path):
+        """Should path be skipped?"""
+        if (path.endswith('.lmirror/metadata') or
+            path.endswith('.lmirrortemp')):
+            # metadata is transmitted by the act of fetching the
+            # journal.
+            return True
+        if self.exclude_re.search(path) and not self.include_re.search(path):
+            return True
+        return False
 
 
 class Journal(object):

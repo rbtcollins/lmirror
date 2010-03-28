@@ -409,12 +409,37 @@ class TestDiskUpdater(ResourcedTestCase):
         basedir.put_bytes('abc', '1234567890\n')
         basedir.put_bytes('dir1/def', 'abcdef')
         last_timestamp = 0 # get everything
-        updater = journals.DiskUpdater({}, basedir, last_timestamp, ui)
+        updater = journals.DiskUpdater({}, basedir, 'name', last_timestamp, ui)
         journal = updater.finished()
         expected = {
             'dir2': ('new', ('dir',)),
             'dir1': ('new', ('dir',)),
             'abc': ('new', ('file', '12039d6dd9a7e27622301e935b6eefc78846802e', 11)),
             'dir1/def': ('new', ('file', '1f8ac10f23c5b5bc1167bda84b833e5c057a77d2', 6))
+            }
+        self.assertEqual(expected, journal.paths)
+
+    def test_skips_other_sets(self):
+        ui = self.get_test_ui()
+        now = time.time()
+        four_seconds = now - 4
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        ui = self.get_test_ui()
+        basedir.create_prefix()
+        basedir.mkdir('.lmirror')
+        basedir.mkdir('.lmirror/sets')
+        basedir.mkdir('.lmirror/sets/name')
+        basedir.mkdir('.lmirror/sets/othername')
+        basedir.put_bytes('.lmirror/sets/name/abc', '1234567890\n')
+        basedir.put_bytes('.lmirror/sets/othername/abc', '1234567890\n')
+        last_timestamp = 0 # get everything
+        updater = journals.DiskUpdater({}, basedir, 'name', last_timestamp, ui)
+        journal = updater.finished()
+        expected = {
+            '.lmirror': ('new', ('dir',)),
+            '.lmirror/sets': ('new', ('dir',)),
+            '.lmirror/sets/name': ('new', ('dir',)),
+            '.lmirror/sets/name/abc': ('new', ('file', '12039d6dd9a7e27622301e935b6eefc78846802e', 11)),
             }
         self.assertEqual(expected, journal.paths)
