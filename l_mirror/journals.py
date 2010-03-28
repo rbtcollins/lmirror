@@ -170,7 +170,8 @@ class DiskUpdater(object):
         '^foo/bar(?$|/)'.
     """
 
-    def __init__(self, tree, transport, name, last_timestamp, ui):
+    def __init__(self, tree, transport, name, last_timestamp, ui,
+        excludes=(), includes=()):
         """Create a DiskUpdater.
 
         :param tree: The tree to compare with.
@@ -182,6 +183,10 @@ class DiskUpdater(object):
             assumed to be unchanged. 3 seconds is chosen because it is larger
             than the 2 second fuzz needed to deal with FAT file systems.
         :param ui: A ui object to send output to.
+        :param excludes: An optional list of uncompiled regexes to include in
+            the exclude_re.
+        :param includes: An optional list of uncompiled regexes to include in
+            the include_re.
         """
         self.tree = tree
         self.transport = transport
@@ -189,9 +194,15 @@ class DiskUpdater(object):
         self.last_timestamp = last_timestamp
         self.ui = ui
         self.journal = Journal()
-        self.include_re = re.compile(
-            r'(?:^|/)\.lmirror/sets(?:$|/%s(?:$|/))' % name)
-        self.exclude_re = re.compile(r'(?:^|/)\.lmirror/')
+        includes = [r'(?:^|/)\.lmirror/sets(?:$|/%s(?:$|/))' % name
+            ] + list(includes)
+        self.include_re = re.compile(self._make_re_str(includes))
+        excludes = [r'(?:^|/)\.lmirror/'] + list(excludes)
+        self.exclude_re = re.compile(self._make_re_str(excludes))
+
+    def _make_re_str(self, re_strs):
+        re_strs = ['(?:%s)' % re_str for re_str in re_strs]
+        return '|'.join(re_strs)
 
     def finished(self):
         """Return the journal obtained by scanning the disk."""

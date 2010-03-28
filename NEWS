@@ -34,6 +34,8 @@ Changes
 * -v will now increase verbosity for all commands. In particular this causes
   mirror and finish-change to list all the changes they discover/transmit.
 
+* .lmirror/sets/<name>/content.conf is now parsed to get include/exclude rules.
+
 API Changes
 +++++++++++
 

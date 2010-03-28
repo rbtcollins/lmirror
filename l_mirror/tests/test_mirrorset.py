@@ -131,6 +131,20 @@ content_root = .
 """))   
         self.assertRaises(ValueError, mirrorset.MirrorSet, basedir, 'myname', ui)
 
+    def test_parse_content_conf(self):
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        ui = self.get_test_ui()
+        mirror = mirrorset.initialise(basedir, 'myname', basedir, ui)
+        t = basedir.clone('.lmirror/sets/myname')
+        t.put_bytes('content.conf', """include a regex
+exclude another regex
+# a comment
+""")
+        mirror._parse_content_conf()
+        self.assertEqual(['another regex'], mirror.excludes)
+        self.assertEqual(['a regex'], mirror.includes)
+
     def test_start_change_updating_error(self):
         basedir = get_transport(self.setup_memory()).clone('path')
         basedir.create_prefix()
@@ -190,6 +204,31 @@ updating = False
 """, ELLIPSIS))
         self.assertThat(t.get_bytes('journals/1'), DocTestMatches("""l-mirror-journal-1
 .lmirror\x00new\x00dir\x00.lmirror/sets\x00new\x00dir\x00.lmirror/sets/myname\x00new\x00dir\x00.lmirror/sets/myname/format\x00new\x00file\x00e5fa44f2b31c1fb553b6021e7360d07d5d91ff5e\x002\x00.lmirror/sets/myname/set.conf\x00new\x00file\x00061df21cf828bb333660621c3743cfc3a3b2bd23\x0023\x00abc\x00new\x00file\x0012039d6dd9a7e27622301e935b6eefc78846802e\x0011\x00dir1\x00new\x00dir\x00dir1/def\x00new\x00file\x001f8ac10f23c5b5bc1167bda84b833e5c057a77d2\x006\x00dir2\x00new\x00dir"""))
+    
+    def test_include_excludes_honoured(self):
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        ui = self.get_test_ui()
+        mirror = mirrorset.initialise(basedir, 'myname', basedir, ui)
+        basedir.create_prefix()
+        basedir.mkdir('dir1')
+        basedir.mkdir('dir2')
+        basedir.put_bytes('abc', '1234567890\n')
+        basedir.put_bytes('dir2/included', '1234567890\n')
+        basedir.put_bytes('dir1/def', 'abcdef')
+        mirror.includes = ['included']
+        mirror.excludes = ['dir2/', 'dir1']
+        mirror.finish_change()
+        t = basedir.clone('.lmirror/metadata/myname')
+        self.assertThat(t.get_bytes('metadata.conf'), DocTestMatches("""[metadata]
+basis = 0
+latest = 1
+timestamp = ...
+updating = False
+
+""", ELLIPSIS))
+        self.assertThat(t.get_bytes('journals/1'), DocTestMatches("""l-mirror-journal-1
+.lmirror\x00new\x00dir\x00.lmirror/sets\x00new\x00dir\x00.lmirror/sets/myname\x00new\x00dir\x00.lmirror/sets/myname/format\x00new\x00file\x00e5fa44f2b31c1fb553b6021e7360d07d5d91ff5e\x002\x00.lmirror/sets/myname/set.conf\x00new\x00file\x00061df21cf828bb333660621c3743cfc3a3b2bd23\x0023\x00abc\x00new\x00file\x0012039d6dd9a7e27622301e935b6eefc78846802e\x0011\x00dir2\x00new\x00dir\x00dir2/included\x00new\x00file\x0012039d6dd9a7e27622301e935b6eefc78846802e\x0011"""))
     
     def test_receive_replays_and_updates_metadata(self):
         basedir = get_transport(self.setup_memory()).clone('path')

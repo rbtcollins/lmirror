@@ -93,7 +93,11 @@ class MirrorSet(object):
         be out of sync with the metadata, and wait for that to get sorted.
 
     :ivar base: The base directory.
-    :ivar name: The name of the mirror
+    :ivar name: The name of the mirror.
+    :ivar excludes: () if not loaded from disk, or the exclude regexes to
+        apply when scanning for changes.
+    :ivar includes: () if not loaded from disk, or the include regexes to
+        apply when scanning for changes.
     :ivar ui: The AbstractUI output is fed to.
     """
 
@@ -114,6 +118,8 @@ class MirrorSet(object):
         self.base = base
         self.name = name
         self.ui = ui
+        self.excludes = ()
+        self.includes = ()
 
     def finish_change(self):
         """Scan the mirror set for changes and write a new journal entry.
@@ -132,7 +138,8 @@ class MirrorSet(object):
         latest = int(metadata.get('metadata', 'latest'))
         current_state = self._combine_journals(basis, latest)
         updater = journals.DiskUpdater(current_state,
-            self._content_root_dir(), self.name, last, self.ui)
+            self._content_root_dir(), self.name, last, self.ui,
+            includes = self.get_includes(), excludes=self.get_excludes())
         journal = updater.finished()
         if journal.paths:
             next_id = latest + 1
@@ -143,6 +150,16 @@ class MirrorSet(object):
             self.ui.output_rest('No changes found in mirrorset.')
         metadata.set('metadata', 'updating', 'False')
         self._set_metadata(metadata)
+
+    def get_excludes(self):
+        if self.excludes == ():
+            self._parse_content_conf()
+        return self.excludes
+
+    def get_includes(self):
+        if self.includes == ():
+            self._parse_content_conf()
+        return self.includes
 
     def start_change(self):
         """Indicate to readers that changes are being made to the mirror.
@@ -220,6 +237,24 @@ class MirrorSet(object):
 
     def _setdir(self):
         return self.base.clone('.lmirror/sets/%s' % self.name)
+
+    def _parse_content_conf(self):
+        t = self._setdir()
+        includes = []
+        excludes = []
+        try:
+            file_bytes = t.get_bytes('content.conf')
+            for line in file_bytes.split('\n'):
+                if not line:
+                    continue
+                if line.startswith('include '):
+                    includes.append(line[8:])
+                elif line.startswith('exclude '):
+                    excludes.append(line[8:])
+        except NoSuchFile:
+            pass
+        self.includes = includes
+        self.excludes = excludes
 
     def content_root_path(self):
         return self._get_settings().get('set', 'content_root')

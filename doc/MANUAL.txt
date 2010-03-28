@@ -273,12 +273,27 @@ for the changeset list.
 Content rules
 +++++++++++++
 
-**NB: Not implemented yet.**
-
 ``.lmirror/sets/<name>/content.conf`` controls what contents are included in a
 mirror set. This file is a simple key-value list. Lines beginning with
 ``include`` select paths to mirror, and ``exclude`` select paths to exclude.
-Excludes win over includes when a path is both included and excluded.
+Excludes win over includes when a path is both included and excluded. Exclude
+and include rules are regexes, which are evaluated in search mode - you need to
+anchor them if you need an anchored search. Note that to exclude a directory
+and include some children of it, you need to exclude the children of the
+directory. For instance, to exclude 'excluded' and include
+'excluded/included'::
+
+  exclude ^excluded/
+  include excluded/included($|/)
+
+The ($|/) clause is there so that a path 'excluded/includedbymistake' will not
+be included.
+
+Regex hints
+-----------
+
+ * '(^|/)FOO': match FOO as the start of a basename at the root or below.
+ * 'FOO($|/)': match FOO as the end of a basename at the root or below.
 
 Barriers
 ++++++++
