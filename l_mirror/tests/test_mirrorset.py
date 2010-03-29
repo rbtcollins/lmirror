@@ -59,6 +59,14 @@ content_root = .
         self.assertEqual('myname', mirror.name)
         self.assertEqual(ui, mirror.ui)
 
+    def test_error_creating_existing_set(self):
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        ui = self.get_test_ui()
+        mirror = mirrorset.initialise(basedir, 'myname', basedir, ui)
+        self.assertRaises(ValueError,
+            mirrorset.initialise, basedir, 'myname', basedir, ui)
+
     def test_accepts_content_root(self):
         basedir = get_transport(self.setup_memory()).clone('path')
         basedir.create_prefix()

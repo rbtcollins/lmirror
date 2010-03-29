@@ -36,6 +36,8 @@ Changes
 
 * .lmirror/sets/<name>/content.conf is now parsed to get include/exclude rules.
 
+* lmirror init will not longer overwrite existing mirror sets.
+
 API Changes
 +++++++++++
 

@@ -53,6 +53,16 @@ def initialise(base, name, content_root, ui):
     ui.output_log(8, 'l_mirror.mirrorset', 'Creating mirrorset %s at %s'
         % (name, base.base))
     setdir.create_prefix()
+    # Ideally we'd use O_EXCL|O_CREAT, but trying a manual open is close enough
+    # to race-free, as if it does race, they'll both be creating the same
+    # content.
+    try:
+        MirrorSet(base, name, ui)
+    except ValueError:
+        pass
+    else:
+        raise ValueError("Already a set %r configured at %s" % (name,
+            base.base))
     setdir.put_bytes('format', '1\n')
     content_relative = urlutils.relative_url(base.base, content_root.base[:-1])
     if not content_relative:
