@@ -21,12 +21,13 @@
 
 from doctest import ELLIPSIS
 
+from bzrlib import gpg as bzrgpg
 from bzrlib.transport import get_transport
 from bzrlib.transport.memory import MemoryServer
 
 from testtools.matchers import DocTestMatches
 
-from l_mirror import mirrorset
+from l_mirror import gpg, mirrorset
 from l_mirror.ui.model import UI
 from l_mirror.tests import ResourcedTestCase
 
@@ -80,7 +81,7 @@ content_root = .
 content_root = ../content
 """))
 
-    def test_second_set_does_not_error(self):
+    def test_second_set_can_be_created(self):
         basedir = get_transport(self.setup_memory()).clone('path')
         basedir.create_prefix()
         ui = self.get_test_ui()
@@ -238,6 +239,22 @@ updating = False
         self.assertThat(t.get_bytes('journals/1'), DocTestMatches("""l-mirror-journal-1
 .lmirror\x00new\x00dir\x00.lmirror/sets\x00new\x00dir\x00.lmirror/sets/myname\x00new\x00dir\x00.lmirror/sets/myname/format\x00new\x00file\x00e5fa44f2b31c1fb553b6021e7360d07d5d91ff5e\x002\x00.lmirror/sets/myname/set.conf\x00new\x00file\x00061df21cf828bb333660621c3743cfc3a3b2bd23\x0023\x00abc\x00new\x00file\x0012039d6dd9a7e27622301e935b6eefc78846802e\x0011\x00dir2\x00new\x00dir\x00dir2/included\x00new\x00file\x0012039d6dd9a7e27622301e935b6eefc78846802e\x0011"""))
     
+    def test_signs_when_there_is_a_keyring(self):
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        ui = self.get_test_ui()
+        mirror = mirrorset.initialise(basedir, 'myname', basedir, ui)
+        mirror.gpg_strategy = bzrgpg.LoopbackGPGStrategy(None)
+        t = basedir.clone('.lmirror/sets/myname')
+        t.put_bytes('lmirror.gpg', '')
+        mirror.finish_change()
+        metadatadir = mirror._metadata()
+        self.assertEqual(
+            "-----BEGIN PSEUDO-SIGNED CONTENT-----\n" +
+            metadatadir.get_bytes('journals/1') +
+            "-----END PSEUDO-SIGNED CONTENT-----\n",
+            metadatadir.get_bytes('journals/1.sig'))
+
     def test_receive_replays_and_updates_metadata(self):
         basedir = get_transport(self.setup_memory()).clone('path')
         basedir.create_prefix()
@@ -273,3 +290,32 @@ updating = False
         clonejournal = clone._journaldir()
         self.assertEqual(mirrorjournal.get_bytes('1'), clonejournal.get_bytes('1'))
         self.assertEqual(mirrorjournal.get_bytes('2'), clonejournal.get_bytes('2'))
+
+    def test_checks_when_there_is_a_keyring(self):
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        ui = self.get_test_ui()
+        mirror = mirrorset.initialise(basedir, 'myname', basedir, ui)
+        mirror.gpg_strategy = bzrgpg.LoopbackGPGStrategy(None)
+        t = basedir.clone('.lmirror/sets/myname')
+        t.put_bytes('lmirror.gpg', '')
+        mirror.finish_change()
+        metadatadir = mirror._metadata()
+        self.assertEqual(
+            "-----BEGIN PSEUDO-SIGNED CONTENT-----\n" +
+            metadatadir.get_bytes('journals/1') +
+            "-----END PSEUDO-SIGNED CONTENT-----\n",
+            metadatadir.get_bytes('journals/1.sig'))
+        clonedir = basedir.clone('../clone')
+        clonedir.create_prefix()
+        clone = mirrorset.initialise(clonedir, 'myname', clonedir, ui)
+        clone.cancel_change()
+        clone.gpgv_strategy = gpg.TestGPGVStrategy([metadatadir.get_bytes('journals/1')])
+        clone.receive(mirror)
+        metadata = clone._get_metadata()
+        self.assertEqual('1', metadata.get('metadata', 'latest'))
+        self.assertEqual(
+            "-----BEGIN PSEUDO-SIGNED CONTENT-----\n" +
+            metadatadir.get_bytes('journals/1') +
+            "-----END PSEUDO-SIGNED CONTENT-----\n",
+            clone._metadata().get_bytes('journals/1.sig'))

@@ -257,6 +257,10 @@ and it is simpler not to: we can add them in future if there is a need.
 
 Journals should be bz2'd or similar, though this is not done yet.
 
+Journals need to be serialised idempotently to support gpg signing. Each
+journal can then be signed. Journal rollups will need to be done on the root
+node in a signed environment.
+
 
 Directory listing approach
 ++++++++++++++++++++++++++

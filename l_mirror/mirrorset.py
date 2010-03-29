@@ -33,9 +33,9 @@ from StringIO import StringIO
 import time
 
 from bzrlib import urlutils
-from bzrlib.errors import NoSuchFile
+from bzrlib.errors import NoSuchFile, NotLocalUrl
 
-from l_mirror import journals
+from l_mirror import gpg, journals
 
 
 def initialise(base, name, content_root, ui):
@@ -109,6 +109,9 @@ class MirrorSet(object):
     :ivar includes: () if not loaded from disk, or the include regexes to
         apply when scanning for changes.
     :ivar ui: The AbstractUI output is fed to.
+    :ivar gpg_strategy: A bzrlib.gpg.GPGStrategy used for doing gpg signatures.
+    :ivar gpgv_strategy: A l_mirror.gpg.GPGVStrategy for doing signature
+        checking.
     """
 
     def __init__(self, base, name, ui):
@@ -130,6 +133,13 @@ class MirrorSet(object):
         self.ui = ui
         self.excludes = ()
         self.includes = ()
+        self.gpg_strategy = gpg.SimpleGPGStrategy(None)
+        try:
+            self.gpgv_strategy = gpg.GPGVStrategy(
+                self._setdir().local_abspath('lmirror.gpg'), self.ui)
+        except NotLocalUrl:
+            # won't be able to do gpgv calls.
+            self.gpgv_strategy = None
 
     def finish_change(self):
         """Scan the mirror set for changes and write a new journal entry.
@@ -153,7 +163,12 @@ class MirrorSet(object):
         journal = updater.finished()
         if journal.paths:
             next_id = latest + 1
-            self._journaldir().put_bytes(str(next_id), journal.as_bytes())
+            journal_bytes = journal.as_bytes()
+            journal_dir = self._journaldir()
+            journal_dir.put_bytes(str(next_id), journal_bytes)
+            if self._is_signed():
+                signature = self.gpg_strategy.sign(journal_bytes)
+                journal_dir.put_bytes("%s.sig" % next_id, signature)
             metadata.set('metadata', 'latest', str(next_id))
             metadata.set('metadata', 'timestamp', str(now))
         else:
@@ -170,6 +185,10 @@ class MirrorSet(object):
         if self.includes == ():
             self._parse_content_conf()
         return self.includes
+
+    def _is_signed(self):
+        """Return true if the mirrorset is using gpg signatures."""
+        return self._setdir().has('lmirror.gpg')
 
     def start_change(self):
         """Indicate to readers that changes are being made to the mirror.
@@ -207,6 +226,7 @@ class MirrorSet(object):
         source_meta = another_mirrorset._get_metadata()
         latest = int(metadata.get('metadata', 'latest'))
         source_latest = int(source_meta.get('metadata', 'latest'))
+        signed = self._is_signed()       
         # XXX: BASIS: basis handling needed here (and thats when we
         # need non-overlapping syncing.
         if source_latest > latest:
@@ -217,10 +237,36 @@ class MirrorSet(object):
             journal_dir = self._journaldir()
             for journal_id in needed:
                 journal_bytes = source_journaldir.get_bytes(str(journal_id))
+                if signed:
+                    # Copy the sig, check its valid in the current keyring.
+                    sig_name = "%s.sig" % journal_id
+                    sig_bytes = source_journaldir.get_bytes(sig_name)
+                    journal_dir.put_bytes(sig_name, sig_bytes)
+                    self.gpgv_strategy.verify(journal_dir, sig_name,
+                        journal_bytes)
                 journal_dir.put_bytes(str(journal_id), journal_bytes)
                 journal = journals.parse(journal_bytes)
                 combiner.add(journal)
             changed_paths = len(combiner.journal.paths)
+            # If the keyring was changed and we were not signed before, copy
+            # the keyring and check that all signed journals validate.
+            keyringpath = '.lmirror/sets/%s/lmirror.gpg' % self.name
+            if keyringpath in combiner.journal.paths:
+                minijournal = journals.Journal()
+                minijournal.paths[keyringpath] = combiner.journal.paths[
+                    keyringpath]
+                replayer = journals.TransportReplay(minijournal,
+                    another_mirrorset.base, self.base, self.ui)
+                replayer.replay()
+                for journal_id in needed:
+                    try:
+                        sig_name = "%s.sig" % journal_id
+                        sig_bytes = source_journaldir.get_bytes(sig_name)
+                        journal_dir.put_bytes(sig_name, sig_bytes)
+                    except NoSuchFile:
+                        continue
+                    self.gpgv_strategy.verify(journal_dir, sig_name,
+                        journal_dir.get_bytes(str(journal_id)))
             replayer = journals.TransportReplay(combiner.journal,
                 another_mirrorset.base, self.base, self.ui)
             replayer.replay()

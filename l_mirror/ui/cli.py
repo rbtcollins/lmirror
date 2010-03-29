@@ -64,6 +64,7 @@ class UI(ui.AbstractUI):
 
     def output_error(self, error_tuple):
         self._stderr.write(str(error_tuple[1]) + '\n')
+        logging.getLogger().log(3, "Error", exc_info=1)
 
     def output_log(self, level, section, line):
         logger = logging.getLogger(section)
@@ -162,6 +163,8 @@ class UI(ui.AbstractUI):
         return not failed and args == []
 
     def subprocess_Popen(self, *args, **kwargs):
+        self.output_log(3, 'l_mirror.ui.cli', "Running subprocess %r %r" % (
+            args, kwargs))
         import subprocess
         return subprocess.Popen(*args, **kwargs)
 

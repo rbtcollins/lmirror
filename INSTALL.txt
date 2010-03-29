@@ -18,3 +18,5 @@ Runtime dependencies
 
  * Python (probably 2.4 or above, but no particular effort has been made for
    compatibility).
+ * gpgv for signature verifications.
+ * gpg to do signing of journals.

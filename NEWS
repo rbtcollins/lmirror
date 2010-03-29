@@ -38,6 +38,8 @@ Changes
 
 * lmirror init will not longer overwrite existing mirror sets.
 
+* lmirror can now sign journals, and will check them during transmissions.
+
 API Changes
 +++++++++++
 

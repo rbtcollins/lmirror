@@ -294,6 +294,7 @@ Regex hints
 
  * '(^|/)FOO': match FOO as the start of a basename at the root or below.
  * 'FOO($|/)': match FOO as the end of a basename at the root or below.
+ * '\.FOO$': match paths ending in '.FOO'.
 
 Barriers
 ++++++++
@@ -301,7 +302,34 @@ Barriers
 **NB: Not implemented yet.**
 
 ``.lmirror/sets/<name>/ordering.conf`` controls the order in which changes in a
-changeset are applied. 
+changeset are applied.
+
+Digital signatures
+++++++++++++++++++
+
+LMirror builds on the GPG/PGP web of trust for digital signing of content. To
+enable digital signing, create a keyring ``.lmirror/sets/<name>/lmirror.gpg``.
+When this file exists, all journals must be signed by any key in this keyring.
+LMirror will invoke gpg to sign journals it creates, and receivers will check
+that journals they receive are signed. It is important, when removing a key from
+the keyring, to do so only after giving your mirrors a chance to update,
+otherwise spurious errors may be encountered if a mirror is too far behind.
+Secondly, and more importantly, updates that change the keyring *must* be
+signed by a key valid in the existing keyrings that receivers already have -
+otherwise they will reject the new keyring and require manual intervention
+to resume syncing. The program gpgv is used to perform verification of
+journals.
+
+A common way to create ``lmirror.gpg`` is::
+
+  gpg --no-default-keyring --keyring .lmirror/sets/<name>/lmirror.gpg --import <exported key>
+
+The error::
+
+ gpgv: Can't check signature: public key not found
+
+Indicates that a journal was signed by a key not in lmirror.gpg.
+
 
 How mirroring works
 ===================
