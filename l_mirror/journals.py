@@ -47,6 +47,65 @@ import re
 from bzrlib import errors, osutils
 
 
+class PathContent(object):
+    """Content about a path.
+
+    This is an abstract type with enough data to verify whether a given path
+    has been updated correctly or not.
+
+    :ivar kind: The kind of the path.
+    """
+
+    def __eq__(self, other):
+        return type(other) == type(self) and self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        return not self == other
+
+    def as_tokens(self):
+        """Return a list of the tokens that would parse into this PathContent.
+        
+        :return: A list of tokens.
+        """
+        raise NotImplementedError(self.as_tokens)
+
+    def __repr__(self):
+        return "PathContent: '%s'" % (self.as_tokens(),)
+
+
+class FileContent(PathContent):
+    """Content for files."""
+
+    def __init__(self, sha1, length):
+        self.kind = 'file'
+        self.sha1 = sha1
+        self.length = length
+
+    def as_tokens(self):
+        return [self.kind, self.sha1, str(self.length)]
+
+
+class SymlinkContent(PathContent):
+    """Content for symlinks."""
+
+    def __init__(self, target):
+        self.kind = 'symlink'
+        self.target = target
+
+    def as_tokens(self):
+        return [self.kind, self.target]
+
+
+class DirContent(PathContent):
+    """Content for directories."""
+
+    def __init__(self):
+        self.kind = 'dir'
+
+    def as_tokens(self):
+        return [self.kind]
+
+
 class Combiner(object):
     """Combine multiple journals.
     
@@ -135,7 +194,7 @@ class Combiner(object):
                     cwd = cwd[segment]
                 except KeyError:
                     raise ValueError('Missing parent dir for path %r' % path)
-            if kind_data[0] == 'dir':
+            if kind_data.kind == 'dir':
                 cwd[segments[-1]] = {}
             else:
                 cwd[segments[-1]] = kind_data
@@ -251,11 +310,11 @@ class DiskUpdater(object):
                         disk_size, disk_sha1 = osutils.size_sha_file(f)
                     finally:
                         f.close()
-                    new_kind_details = (kind, disk_sha1, disk_size)
+                    new_kind_details = FileContent(disk_sha1, disk_size)
                 elif kind == 'symlink':
-                    new_kind_details = (kind, os.readlink(self.transport.local_abspath(path)))
+                    new_kind_details = SymlinkContent(os.readlink(self.transport.local_abspath(path)))
                 elif kind == 'directory':
-                    new_kind_details = ('dir',)
+                    new_kind_details = DirContent()
                     pending.append(path)
                 else:
                     raise ValueError('unknown kind %r for %r' % (kind, path))
@@ -264,7 +323,7 @@ class DiskUpdater(object):
                 else:
                     old_kind_details = cwd[name]
                     if type(old_kind_details) is dict:
-                        old_kind_details = ('dir',)
+                        old_kind_details = DirContent()
                     if old_kind_details != new_kind_details:
                         self.journal.add(path, 'replace', (old_kind_details,
                             new_kind_details))
@@ -320,7 +379,7 @@ class Journal(object):
         if relpath in self.paths:
             raise ValueError('path %r is already in use.' % relpath)
         if action == 'replace':
-            if len(kind_data) != 2 or type(kind_data[0]) is not tuple:
+            if len(kind_data) != 2 or not isinstance(kind_data[0], PathContent):
                 raise ValueError(
                     'looks like only one kind_data in replace action: %r' %
                     (kind_data,))
@@ -342,14 +401,10 @@ class Journal(object):
             output.append(path)
             output.append(action)
             if action == 'replace':
-                output.extend(kind_data[0])
-                if type(output[-1]) is int:
-                    output[-1] = str(output[-1])
-                output.extend(kind_data[1])
+                output.extend(kind_data[0].as_tokens())
+                output.extend(kind_data[1].as_tokens())
             else:
-                output.extend(kind_data)
-            if type(output[-1]) is int:
-                output[-1] = str(output[-1])
+                output.extend(kind_data.as_tokens())
         return 'l-mirror-journal-1\n' + '\0'.join(output)
 
 
@@ -372,11 +427,11 @@ def parse(a_bytestring):
         kind = tokens[pos]
         pos += 1
         if kind == 'file':
-            return (kind, tokens[pos], int(tokens[pos+1])), pos + 2
+            return FileContent(tokens[pos], int(tokens[pos+1])), pos + 2
         elif kind == 'dir':
-            return (kind,), pos
+            return DirContent(), pos
         elif kind == 'symlink':
-            return (kind, tokens[pos]), pos + 1
+            return SymlinkContent(tokens[pos]), pos + 1
         else:
             raise ValueError('unknown kind %r at token %d.' % (kind, pos))
     while pos < len(tokens):
@@ -461,9 +516,9 @@ class TransportReplay(object):
         # Children go first :)
         deletes.sort(reverse=True)
         for path,content in deletes:
-            self.ui.output_log(4, __name__, 'Deleting %s %r' % (content[0], path))
+            self.ui.output_log(4, __name__, 'Deleting %s %r' % (content.kind, path))
             try:
-                if content[0] != 'dir':
+                if content.kind != 'dir':
                     self.contentdir.delete(path)
                 else:
                     self.contentdir.rmdir(path)
@@ -498,7 +553,7 @@ class TransportReplay(object):
                 size, sha1 = osutils.size_sha_file(f)
             finally:
                 f.close()
-            return sha1 == content[1] and size == content[2]
+            return sha1 == content.sha1 and size == content.length
         except errors.NoSuchFile:
             return False
 
@@ -539,14 +594,14 @@ class TransportReplay(object):
             IO has been done before returning.
         """
         tempname = '%s.lmirrortemp' % path
-        self.ui.output_log(4, __name__, 'Writing %s %r' % (content[0], path))
-        if content[0] == 'dir':
+        self.ui.output_log(4, __name__, 'Writing %s %r' % (content.kind, path))
+        if content.kind == 'dir':
             return lambda: self.ensure_dir(path)
-        elif content[0] == 'symlink':
+        elif content.kind == 'symlink':
             realpath = self.sourcedir.local_abspath(path)
-            return lambda: self.ensure_link(realpath, content[1])
-        elif content[0] != 'file':
-            raise ValueError('unknown kind %r for %r' % (content[0], path))
+            return lambda: self.ensure_link(realpath, content.target)
+        elif content.kind != 'file':
+            raise ValueError('unknown kind %r for %r' % (content.kind, path))
         # don't download content we don't need
         try:
             if self.check_file(path, content):
@@ -565,11 +620,11 @@ class TransportReplay(object):
                 stream.close()
             # TODO: here is where we should check for a mirror-is-updating
             # case.
-            if size != content[2] or source.sha1.hexdigest() != content[1]:
+            if size != content.length or source.sha1.hexdigest() != content.sha1:
                 self.contentdir.delete(tempname)
                 raise ValueError(
                     'read incorrect content for %r, got sha %r wanted %r' % (
-                    path, source.sha1.hexdigest(), content[1]))
+                    path, source.sha1.hexdigest(), content.sha1))
         finally:
             a_file.close()
         return lambda: self.ensure_file(tempname, path, content)
