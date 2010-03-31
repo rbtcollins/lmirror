@@ -624,7 +624,7 @@ class TransportReplay(object):
         if content.kind == 'dir':
             return lambda: self.ensure_dir(path)
         elif content.kind == 'symlink':
-            realpath = self.sourcedir.local_abspath(path)
+            realpath = self.contentdir.local_abspath(path)
             return lambda: self.ensure_link(realpath, content.target)
         elif content.kind != 'file':
             raise ValueError('unknown kind %r for %r' % (content.kind, path))
@@ -652,9 +652,10 @@ class TransportReplay(object):
                     'read incorrect content for %r, got sha %r wanted %r' % (
                     path, source.sha1.hexdigest(), content.sha1))
             if content.mtime is not None:
-                # Perhaps the first param - atime - should be 'now'.
+                temppath = self.contentdir.local_abspath(tempname)
                 try:
-                    os.utime(tempname, (content.mtime, content.mtime))
+                    # Perhaps the first param - atime - should be 'now'.
+                    os.utime(temppath, (content.mtime, content.mtime))
                 except OSError, e:
                     # swallow no-such-file errors: they primarily indicate that
                     # the test suite is running against memory, with files that
@@ -662,6 +663,8 @@ class TransportReplay(object):
                     # rename-into-place call will detect that anyway.
                     if e.errno != errno.ENOENT:
                         raise
+                    self.ui.output_log(4, __name__,
+                        'Failed to set mtime for %r' % (temppath,))
         finally:
             a_file.close()
         return lambda: self.ensure_file(tempname, path, content)
