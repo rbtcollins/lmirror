@@ -22,7 +22,6 @@
 from doctest import ELLIPSIS
 
 from bzrlib.transport import get_transport
-from bzrlib.transport.memory import MemoryServer
 
 from testtools.matchers import DocTestMatches
 
@@ -39,14 +38,6 @@ class TestCommandCommands(ResourcedTestCase):
         cmd = init.init(ui)
         ui.set_command(cmd)
         return ui, cmd
-
-    def setup_memory(self):
-        """Create a memory url server and return its url."""
-        # XXX: integrate with ui.here better.
-        self.transport_factory = MemoryServer()
-        self.transport_factory.start_server()
-        self.addCleanup(self.transport_factory.stop_server)
-        return self.transport_factory.get_url()
 
     def test_creates_set_directory(self):
         base = self.setup_memory()
@@ -91,7 +82,7 @@ latest = 0
 timestamp = ...
 updating = True
 """, ELLIPSIS))
-        self.assertThat(t.get_bytes('journals/0'), DocTestMatches("""l-mirror-journal-1
+        self.assertThat(t.get_bytes('journals/0'), DocTestMatches("""l-mirror-journal-2
 """))
 
     def test_scans_content_root(self):
@@ -115,7 +106,7 @@ timestamp = ...
 updating = False
 
 """, ELLIPSIS))
-        self.assertThat(t.get_bytes('journals/0'), DocTestMatches("""l-mirror-journal-1
+        self.assertThat(t.get_bytes('journals/0'), DocTestMatches("""l-mirror-journal-2
 """))
-        self.assertThat(t.get_bytes('journals/1'), DocTestMatches("""l-mirror-journal-1
-.lmirror\x00new\x00dir\x00.lmirror/sets\x00new\x00dir\x00.lmirror/sets/myname\x00new\x00dir\x00.lmirror/sets/myname/format\x00new\x00file\x00e5fa44f2b31c1fb553b6021e7360d07d5d91ff5e\x002\x00.lmirror/sets/myname/set.conf\x00new\x00file\x00061df21cf828bb333660621c3743cfc3a3b2bd23\x0023\x00abc\x00new\x00file\x0012039d6dd9a7e27622301e935b6eefc78846802e\x0011\x00dir1\x00new\x00dir\x00dir1/def\x00new\x00file\x001f8ac10f23c5b5bc1167bda84b833e5c057a77d2\x006\x00dir2\x00new\x00dir"""))
+        self.assertThat(t.get_bytes('journals/1'), DocTestMatches("""l-mirror-journal-2
+.lmirror\x00new\x00dir\x00.lmirror/sets\x00new\x00dir\x00.lmirror/sets/myname\x00new\x00dir\x00.lmirror/sets/myname/format\x00new\x00file\x00e5fa44f2b31c1fb553b6021e7360d07d5d91ff5e\x002\x000.000000\x00.lmirror/sets/myname/set.conf\x00new\x00file\x00061df21cf828bb333660621c3743cfc3a3b2bd23\x0023\x000.000000\x00abc\x00new\x00file\x0012039d6dd9a7e27622301e935b6eefc78846802e\x0011\x000.000000\x00dir1\x00new\x00dir\x00dir1/def\x00new\x00file\x001f8ac10f23c5b5bc1167bda84b833e5c057a77d2\x006\x000.000000\x00dir2\x00new\x00dir"""))

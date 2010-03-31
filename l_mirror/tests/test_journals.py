@@ -40,27 +40,27 @@ class TestCombiner(ResourcedTestCase):
     def test_add_journal_no_conflict(self):
         combiner = journals.Combiner()
         j1 = journals.Journal()
-        j1.add('abc', 'new', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+        j1.add('abc', 'new', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         combiner.add(j1)
 
     def test_add_delete_no_conflict(self):
         combiner = journals.Combiner()
         j1 = journals.Journal()
-        j1.add('abc', 'del', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+        j1.add('abc', 'del', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         combiner.add(j1)
 
     def test_add_replace_no_path_no_conflict(self):
         combiner = journals.Combiner()
         j1 = journals.Journal()
         j1.add('abc', 'replace', (
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11),
-            journals.FileContent('abcdef0123412312341234123412341234123412', 34)))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None),
+            journals.FileContent('abcdef0123412312341234123412341234123412', 34, None)))
         combiner.add(j1)
 
     def test_add_new_new_conflicts(self):
         combiner = journals.Combiner()
         j1 = journals.Journal()
-        j1.add('abc', 'new', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+        j1.add('abc', 'new', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         combiner.add(j1)
         self.assertRaises(ValueError, combiner.add, j1)
 
@@ -68,22 +68,22 @@ class TestCombiner(ResourcedTestCase):
         combiner = journals.Combiner()
         j1 = journals.Journal()
         j1.add('abc', 'new',
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         combiner.add(j1)
         j2 = journals.Journal()
         j2.add('abc', 'del',
-            journals.FileContent('abc39d6dd9a7e27622301e935b6eefc78846802e', 11))
+            journals.FileContent('abc39d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         self.assertRaises(ValueError, combiner.add, j2)
 
     def test_add_new_delete_no_conflicts(self):
         combiner = journals.Combiner()
         j1 = journals.Journal()
         j1.add('abc', 'new',
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         combiner.add(j1)
         j2 = journals.Journal()
         j2.add('abc', 'del',
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         combiner.add(j2)
         self.assertEqual({}, combiner.journal.paths)
 
@@ -91,123 +91,123 @@ class TestCombiner(ResourcedTestCase):
         combiner = journals.Combiner()
         j1 = journals.Journal()
         j1.add('abc', 'new',
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         combiner.add(j1)
         j2 = journals.Journal()
         j2.add('abc', 'replace', (
-            journals.FileContent('abc39d6dd9a7e27622301e935b6eefc78846802e', 11),
-            journals.FileContent('abcdef0123412312341234123412341234123412', 34)))
+            journals.FileContent('abc39d6dd9a7e27622301e935b6eefc78846802e', 11, None),
+            journals.FileContent('abcdef0123412312341234123412341234123412', 34, None)))
         self.assertRaises(ValueError, combiner.add, j2)
 
     def test_add_new_replace_no_conflicts(self):
         combiner = journals.Combiner()
         j1 = journals.Journal()
         j1.add('abc', 'new',
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         combiner.add(j1)
         j2 = journals.Journal()
         j2.add('abc', 'replace', (
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11),
-            journals.FileContent('abcdef0123412312341234123412341234123412', 34)))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None),
+            journals.FileContent('abcdef0123412312341234123412341234123412', 34, None)))
         combiner.add(j2)
         self.assertEqual({'abc': ('new', 
-            journals.FileContent('abcdef0123412312341234123412341234123412', 34))},
+            journals.FileContent('abcdef0123412312341234123412341234123412', 34, None))},
             combiner.journal.paths)
 
     def test_add_replace_del_no_conflicts(self):
         combiner = journals.Combiner()
         j1 = journals.Journal()
         j1.add('abc', 'replace', (
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11),
-            journals.FileContent('abcdef0123412312341234123412341234123412', 34)))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None),
+            journals.FileContent('abcdef0123412312341234123412341234123412', 34, None)))
         combiner.add(j1)
         j2 = journals.Journal()
         j2.add('abc', 'del',
-            journals.FileContent('abcdef0123412312341234123412341234123412', 34))
+            journals.FileContent('abcdef0123412312341234123412341234123412', 34, None))
         combiner.add(j2)
         self.assertEqual({'abc': ('del', 
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))},
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))},
             combiner.journal.paths)
 
     def test_add_replace_del_mismatch_path_conflicts(self):
         combiner = journals.Combiner()
         j1 = journals.Journal()
         j1.add('abc', 'replace', (
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11),
-            journals.FileContent('abcdef0123412312341234123412341234123412', 34)))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None),
+            journals.FileContent('abcdef0123412312341234123412341234123412', 34, None)))
         combiner.add(j1)
         j2 = journals.Journal()
         j2.add('abc', 'del',
-            journals.FileContent('12339d6dd9a7e27622301e935b6eefc78846802e', 34))
+            journals.FileContent('12339d6dd9a7e27622301e935b6eefc78846802e', 34, None))
         self.assertRaises(ValueError, combiner.add, j2)
 
     def test_add_replace_new_conflicts(self):
         combiner = journals.Combiner()
         j1 = journals.Journal()
         j1.add('abc', 'replace', (
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11),
-            journals.FileContent('abcdef0123412312341234123412341234123412', 34)))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None),
+            journals.FileContent('abcdef0123412312341234123412341234123412', 34, None)))
         combiner.add(j1)
         j2 = journals.Journal()
         j2.add('abc', 'new',
-            journals.FileContent('abcdef0123412312341234123412341234123412', 34))
+            journals.FileContent('abcdef0123412312341234123412341234123412', 34, None))
         self.assertRaises(ValueError, combiner.add, j2)
 
     def test_add_replace_replace_no_conflicts(self):
         combiner = journals.Combiner()
         j1 = journals.Journal()
         j1.add('abc', 'replace', (
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11),
-            journals.FileContent('abcdef0123412312341234123412341234123412', 34)))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None),
+            journals.FileContent('abcdef0123412312341234123412341234123412', 34, None)))
         combiner.add(j1)
         j2 = journals.Journal()
         j2.add('abc', 'replace', (
-            journals.FileContent('abcdef0123412312341234123412341234123412', 34),
-            journals.FileContent('9999999999999999999999999999999999999999', 15)))
+            journals.FileContent('abcdef0123412312341234123412341234123412', 34, None),
+            journals.FileContent('9999999999999999999999999999999999999999', 15, None)))
         combiner.add(j2)
         self.assertEqual({'abc': ('replace', (
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11),
-            journals.FileContent('9999999999999999999999999999999999999999', 15)))},
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None),
+            journals.FileContent('9999999999999999999999999999999999999999', 15, None)))},
             combiner.journal.paths)
 
     def test_add_replace_replace_mismatch_path_conflicts(self):
         combiner = journals.Combiner()
         j1 = journals.Journal()
         j1.add('abc', 'replace', (
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11),
-            journals.FileContent('abcdef0123412312341234123412341234123412', 34)))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None),
+            journals.FileContent('abcdef0123412312341234123412341234123412', 34, None)))
         combiner.add(j1)
         j2 = journals.Journal()
         j2.add('abc', 'replace', (
-            journals.FileContent('abc39d6dd9a7e27622301e935b6eefc78846802e', 11),
-            journals.FileContent('abcdef0123412312341234123412341234123412', 34)))
+            journals.FileContent('abc39d6dd9a7e27622301e935b6eefc78846802e', 11, None),
+            journals.FileContent('abcdef0123412312341234123412341234123412', 34, None)))
         self.assertRaises(ValueError, combiner.add, j2)
 
     def test_add_del_del_conflicts(self):
         combiner = journals.Combiner()
         j1 = journals.Journal()
-        j1.add('abc', 'del', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+        j1.add('abc', 'del', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         combiner.add(j1)
         self.assertRaises(ValueError, combiner.add, j1)
 
     def test_add_del_replace_conflicts(self):
         combiner = journals.Combiner()
         j1 = journals.Journal()
-        j1.add('abc', 'del', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+        j1.add('abc', 'del', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         combiner.add(j1)
         j2 = journals.Journal()
         j2.add('abc', 'replace', (
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11),
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11)))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None),
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None)))
         self.assertRaises(ValueError, combiner.add, j2)
 
     def test_add_del_new_ok(self):
         combiner = journals.Combiner()
         j1 = journals.Journal()
-        j1.add('abc', 'del', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+        j1.add('abc', 'del', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         combiner.add(j1)
         j2 = journals.Journal()
-        j2.add('abc', 'new', journals.FileContent('00039d6dd9a7e27622301e935b6eefc78846802e', 34))
+        j2.add('abc', 'new', journals.FileContent('00039d6dd9a7e27622301e935b6eefc78846802e', 34, None))
         combiner.add(j2)
 
     def test_as_tree_empty(self):
@@ -216,8 +216,8 @@ class TestCombiner(ResourcedTestCase):
 
     def test_as_tree_demo(self):
         combiner = journals.Combiner()
-        file1 = journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11)
-        file2 = journals.FileContent('abcdef0123412312341234123412341234123412', 34)
+        file1 = journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None)
+        file2 = journals.FileContent('abcdef0123412312341234123412341234123412', 34, None)
         link1 = journals.SymlinkContent('foo bar/baz')
         dir1 = journals.DirContent()
         expected = {'foo': file1,
@@ -269,73 +269,65 @@ class TestJournal(ResourcedTestCase):
     def test_add_new_ok(self):
         j1 = journals.Journal()
         j1.add('abc', 'new',
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         self.assertTrue('abc' in j1.paths)
 
     def test_add_dup_path_error(self):
         j1 = journals.Journal()
         j1.add('abc', 'new',
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         self.assertRaises(ValueError, j1.add, 'abc', 'new',
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
 
     def test_del_new_ok(self):
         j1 = journals.Journal()
         j1.add('abc', 'del',
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         self.assertTrue('abc' in j1.paths)
 
     def test_del_dup_path_error(self):
         j1 = journals.Journal()
         j1.add('abc', 'del',
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         self.assertRaises(ValueError, j1.add, 'abc', 'del',
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
 
     def test_replace_new_ok(self):
         j1 = journals.Journal()
         j1.add('abc', 'replace', (
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11),
-            journals.FileContent('e935b6eefc78846802e12039d6dd9a7e27622301', 12)))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None),
+            journals.FileContent('e935b6eefc78846802e12039d6dd9a7e27622301', 12, None)))
         self.assertTrue('abc' in j1.paths)
 
     def test_replace_dup_path_error(self):
         j1 = journals.Journal()
         j1.add('abc', 'replace', (
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11),
-            journals.FileContent('e935b6eefc78846802e12039d6dd9a7e27622301', 12)))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None),
+            journals.FileContent('e935b6eefc78846802e12039d6dd9a7e27622301', 12, None)))
         self.assertRaises(ValueError, j1.add, 'abc', 'replace', (
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11),
-            journals.FileContent('e935b6eefc78846802e12039d6dd9a7e27622301', 12)))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None),
+            journals.FileContent('e935b6eefc78846802e12039d6dd9a7e27622301', 12, None)))
 
     def test_replace_single_details_errors(self):
         j1 = journals.Journal()
         j1.add('abc', 'replace', (
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11),
-            journals.FileContent('abcdef1231231231231231231241231231231241', 12)))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None),
+            journals.FileContent('abcdef1231231231231231231241231231231241', 12, None)))
 
     def test_as_bytes(self):
         # as bytes can serialise all types, and is sorted by path.
         j1 = journals.Journal()
         j1.add('abc', 'new',
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, 0.0))
         j1.add('abc/def', 'del', journals.DirContent())
         j1.add('1234', 'replace', (
             journals.SymlinkContent('foo bar/baz'),
-            journals.FileContent('e935b6eefc78846802e12039d6dd9a7e27622301', 0)))
-        self.assertEqual("""l-mirror-journal-1
-1234\0replace\0symlink\0foo bar/baz\0file\0e935b6eefc78846802e12039d6dd9a7e27622301\0000\x00abc\0new\0file\00012039d6dd9a7e27622301e935b6eefc78846802e\00011\0abc/def\0del\0dir""", j1.as_bytes())
+            journals.FileContent('e935b6eefc78846802e12039d6dd9a7e27622301', 0, 1.5)))
+        self.assertEqual("""l-mirror-journal-2
+1234\0replace\0symlink\0foo bar/baz\0file\0e935b6eefc78846802e12039d6dd9a7e27622301\0000\x001.500000\x00abc\0new\0file\00012039d6dd9a7e27622301e935b6eefc78846802e\00011\x000.000000\x00abc/def\0del\0dir""", j1.as_bytes())
 
 
 class TestTransportReplay(ResourcedTestCase):
-
-    def setup_memory(self):
-        """Create a memory url server and return its url."""
-        # XXX: integrate with ui.here better.
-        self.transport_factory = MemoryServer()
-        self.transport_factory.start_server()
-        self.addCleanup(self.transport_factory.stop_server)
-        return self.transport_factory.get_url()
 
     def test_orders_new_replace_delete(self):
         # new-replace-delete is a sane default order.
@@ -349,10 +341,10 @@ class TestTransportReplay(ResourcedTestCase):
         sourcedir.put_bytes('new', '12341234')
         j1 = journals.Journal()
         j1.add('abc', 'replace', (
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 3),
-            journals.FileContent('5a78babbb162531b3a16c55310a4e7228d68f2e9', 12)))
-        j1.add('bye', 'del', journals.FileContent('d', 2))
-        j1.add('new', 'new', journals.FileContent('c129b324aee662b04eccf68babba85851346dff9', 8))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 3, None),
+            journals.FileContent('5a78babbb162531b3a16c55310a4e7228d68f2e9', 12, None)))
+        j1.add('bye', 'del', journals.FileContent('d', 2, None))
+        j1.add('new', 'new', journals.FileContent('c129b324aee662b04eccf68babba85851346dff9', 8, None))
         del basedir._activity[:]
         ui = UI()
         replay = journals.TransportReplay(j1, sourcedir, basedir, ui)
@@ -365,16 +357,28 @@ class TestTransportReplay(ResourcedTestCase):
 
 class TestParser(ResourcedTestCase):
 
-    def test_parse_demo(self):
+    def test_parse_v1(self):
         journal = journals.parse("""l-mirror-journal-1
 1234\0replace\0symlink\0foo bar/baz\0file\0e935b6eefc78846802e12039d6dd9a7e27622301\0000\x00abc\0new\0file\00012039d6dd9a7e27622301e935b6eefc78846802e\00011\0abc/def\0del\0dir""")
         expected = journals.Journal()
         expected.add('abc', 'new',
-            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11))
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, None))
         expected.add('abc/def', 'del', journals.DirContent())
         expected.add('1234', 'replace', (
             journals.SymlinkContent('foo bar/baz'),
-            journals.FileContent('e935b6eefc78846802e12039d6dd9a7e27622301', 0)))
+            journals.FileContent('e935b6eefc78846802e12039d6dd9a7e27622301', 0, None)))
+        self.assertEqual(expected.paths, journal.paths)
+
+    def test_parse_v2(self):
+        journal = journals.parse("""l-mirror-journal-2
+1234\0replace\0symlink\0foo bar/baz\0file\0e935b6eefc78846802e12039d6dd9a7e27622301\0000\x000\x00abc\0new\0file\00012039d6dd9a7e27622301e935b6eefc78846802e\00011\x002\0abc/def\0del\0dir""")
+        expected = journals.Journal()
+        expected.add('abc', 'new',
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, 2.0))
+        expected.add('abc/def', 'del', journals.DirContent())
+        expected.add('1234', 'replace', (
+            journals.SymlinkContent('foo bar/baz'),
+            journals.FileContent('e935b6eefc78846802e12039d6dd9a7e27622301', 0, 0.0)))
         self.assertEqual(expected.paths, journal.paths)
 
     def test_parse_empty(self):
@@ -383,7 +387,7 @@ class TestParser(ResourcedTestCase):
 
     def test_parse_wrong_header(self):
         self.assertRaises(ValueError, journals.parse, 'l-mirror-journal-1')
-        self.assertRaises(ValueError, journals.parse, 'l-mirror-journal-2\n')
+        self.assertRaises(ValueError, journals.parse, 'l-mirror-journal-3\n')
 
 
 class TestDiskUpdater(ResourcedTestCase):
@@ -391,14 +395,6 @@ class TestDiskUpdater(ResourcedTestCase):
     def get_test_ui(self):
         ui = UI()
         return ui
-
-    def setup_memory(self):
-        """Create a memory url server and return its url."""
-        # XXX: integrate with ui.here better.
-        self.transport_factory = MemoryServer()
-        self.transport_factory.start_server()
-        self.addCleanup(self.transport_factory.stop_server)
-        return self.transport_factory.get_url()
 
     def test_update_demo(self):
         ui = self.get_test_ui()
@@ -418,8 +414,8 @@ class TestDiskUpdater(ResourcedTestCase):
         expected = {
             'dir2': ('new', journals.DirContent()),
             'dir1': ('new', journals.DirContent()),
-            'abc': ('new', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11)),
-            'dir1/def': ('new', journals.FileContent('1f8ac10f23c5b5bc1167bda84b833e5c057a77d2', 6))
+            'abc': ('new', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, 0)),
+            'dir1/def': ('new', journals.FileContent('1f8ac10f23c5b5bc1167bda84b833e5c057a77d2', 6, 0))
             }
         self.assertEqual(expected, journal.paths)
 
@@ -444,6 +440,6 @@ class TestDiskUpdater(ResourcedTestCase):
             '.lmirror': ('new', journals.DirContent()),
             '.lmirror/sets': ('new', journals.DirContent()),
             '.lmirror/sets/name': ('new', journals.DirContent()),
-            '.lmirror/sets/name/abc': ('new', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11)),
+            '.lmirror/sets/name/abc': ('new', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, 0)),
             }
         self.assertEqual(expected, journal.paths)

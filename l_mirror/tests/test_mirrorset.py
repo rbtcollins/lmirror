@@ -23,7 +23,6 @@ from doctest import ELLIPSIS
 
 from bzrlib import gpg as bzrgpg
 from bzrlib.transport import get_transport
-from bzrlib.transport.memory import MemoryServer
 
 from testtools.matchers import DocTestMatches
 
@@ -37,14 +36,6 @@ class TestMirrorSet(ResourcedTestCase):
     def get_test_ui(self):
         ui = UI()
         return ui
-
-    def setup_memory(self):
-        """Create a memory url server and return its url."""
-        # XXX: integrate with ui.here better.
-        self.transport_factory = MemoryServer()
-        self.transport_factory.start_server()
-        self.addCleanup(self.transport_factory.stop_server)
-        return self.transport_factory.get_url()
 
     def test_create_set(self):
         basedir = get_transport(self.setup_memory()).clone('path')
@@ -106,7 +97,7 @@ latest = 0
 timestamp = 0
 updating = True
 """, ELLIPSIS))
-        self.assertThat(t.get_bytes('journals/0'), DocTestMatches("""l-mirror-journal-1
+        self.assertThat(t.get_bytes('journals/0'), DocTestMatches("""l-mirror-journal-2
 """))
 
     def test_open_set(self):
@@ -211,8 +202,8 @@ timestamp = ...
 updating = False
 
 """, ELLIPSIS))
-        self.assertThat(t.get_bytes('journals/1'), DocTestMatches("""l-mirror-journal-1
-.lmirror\x00new\x00dir\x00.lmirror/sets\x00new\x00dir\x00.lmirror/sets/myname\x00new\x00dir\x00.lmirror/sets/myname/format\x00new\x00file\x00e5fa44f2b31c1fb553b6021e7360d07d5d91ff5e\x002\x00.lmirror/sets/myname/set.conf\x00new\x00file\x00061df21cf828bb333660621c3743cfc3a3b2bd23\x0023\x00abc\x00new\x00file\x0012039d6dd9a7e27622301e935b6eefc78846802e\x0011\x00dir1\x00new\x00dir\x00dir1/def\x00new\x00file\x001f8ac10f23c5b5bc1167bda84b833e5c057a77d2\x006\x00dir2\x00new\x00dir"""))
+        self.assertThat(t.get_bytes('journals/1'), DocTestMatches("""l-mirror-journal-2
+.lmirror\x00new\x00dir\x00.lmirror/sets\x00new\x00dir\x00.lmirror/sets/myname\x00new\x00dir\x00.lmirror/sets/myname/format\x00new\x00file\x00e5fa44f2b31c1fb553b6021e7360d07d5d91ff5e\x002\x000.000000\x00.lmirror/sets/myname/set.conf\x00new\x00file\x00061df21cf828bb333660621c3743cfc3a3b2bd23\x0023\x000.000000\x00abc\x00new\x00file\x0012039d6dd9a7e27622301e935b6eefc78846802e\x0011\x000.000000\x00dir1\x00new\x00dir\x00dir1/def\x00new\x00file\x001f8ac10f23c5b5bc1167bda84b833e5c057a77d2\x006\x000.000000\x00dir2\x00new\x00dir"""))
     
     def test_include_excludes_honoured(self):
         basedir = get_transport(self.setup_memory()).clone('path')
@@ -236,8 +227,8 @@ timestamp = ...
 updating = False
 
 """, ELLIPSIS))
-        self.assertThat(t.get_bytes('journals/1'), DocTestMatches("""l-mirror-journal-1
-.lmirror\x00new\x00dir\x00.lmirror/sets\x00new\x00dir\x00.lmirror/sets/myname\x00new\x00dir\x00.lmirror/sets/myname/format\x00new\x00file\x00e5fa44f2b31c1fb553b6021e7360d07d5d91ff5e\x002\x00.lmirror/sets/myname/set.conf\x00new\x00file\x00061df21cf828bb333660621c3743cfc3a3b2bd23\x0023\x00abc\x00new\x00file\x0012039d6dd9a7e27622301e935b6eefc78846802e\x0011\x00dir2\x00new\x00dir\x00dir2/included\x00new\x00file\x0012039d6dd9a7e27622301e935b6eefc78846802e\x0011"""))
+        self.assertThat(t.get_bytes('journals/1'), DocTestMatches("""l-mirror-journal-2
+.lmirror\x00new\x00dir\x00.lmirror/sets\x00new\x00dir\x00.lmirror/sets/myname\x00new\x00dir\x00.lmirror/sets/myname/format\x00new\x00file\x00e5fa44f2b31c1fb553b6021e7360d07d5d91ff5e\x002\x000.000000\x00.lmirror/sets/myname/set.conf\x00new\x00file\x00061df21cf828bb333660621c3743cfc3a3b2bd23\x0023\x000.000000\x00abc\x00new\x00file\x0012039d6dd9a7e27622301e935b6eefc78846802e\x0011\x000.000000\x00dir2\x00new\x00dir\x00dir2/included\x00new\x00file\x0012039d6dd9a7e27622301e935b6eefc78846802e\x0011\x000.000000"""))
     
     def test_signs_when_there_is_a_keyring(self):
         basedir = get_transport(self.setup_memory()).clone('path')

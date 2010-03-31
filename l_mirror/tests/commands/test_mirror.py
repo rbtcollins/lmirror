@@ -22,7 +22,6 @@
 from doctest import ELLIPSIS
 
 from bzrlib.transport import get_transport
-from bzrlib.transport.memory import MemoryServer
 
 from testtools.matchers import DocTestMatches
 
@@ -40,14 +39,6 @@ class TestCommandCommands(ResourcedTestCase):
         cmd = mirror.mirror(ui)
         ui.set_command(cmd)
         return ui, cmd
-
-    def setup_memory(self):
-        """Create a memory url server and return its url."""
-        # XXX: integrate with ui.here better.
-        self.transport_factory = MemoryServer()
-        self.transport_factory.start_server()
-        self.addCleanup(self.transport_factory.stop_server)
-        return self.transport_factory.get_url()
 
     def test_error_no_source(self):
         base = self.setup_memory()

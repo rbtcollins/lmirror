@@ -74,15 +74,25 @@ class PathContent(object):
 
 
 class FileContent(PathContent):
-    """Content for files."""
+    """Content for files.
+    
+    :ivar sha1: The sha1 of the filec ontent.
+    :ivar length: The length of the file.
+    :ivar mtime: The mtime of the file. None if it is not known.
+    """
 
-    def __init__(self, sha1, length):
+    def __init__(self, sha1, length, mtime):
         self.kind = 'file'
         self.sha1 = sha1
         self.length = length
+        self.mtime = mtime
 
     def as_tokens(self):
-        return [self.kind, self.sha1, str(self.length)]
+        if self.mtime is None:
+            mtime = "None"
+        else:
+            mtime = "%0.6f" % self.mtime
+        return [self.kind, self.sha1, str(self.length), mtime]
 
 
 class SymlinkContent(PathContent):
@@ -310,7 +320,7 @@ class DiskUpdater(object):
                         disk_size, disk_sha1 = osutils.size_sha_file(f)
                     finally:
                         f.close()
-                    new_kind_details = FileContent(disk_sha1, disk_size)
+                    new_kind_details = FileContent(disk_sha1, disk_size, statinfo.st_mtime)
                 elif kind == 'symlink':
                     new_kind_details = SymlinkContent(os.readlink(self.transport.local_abspath(path)))
                 elif kind == 'directory':
@@ -389,8 +399,8 @@ class Journal(object):
         """Return a byte representation of this journal.
 
         The representation can be parsed by l_mirror.journals.parse. The
-        structure is a header ('l-mimrror-journal-1\n') followed by '\\0'
-        delimited fields. These follow the sequence PATH, ACTION, KIND_DATA and
+        structure is a header ('l-mimrror-journal-2\n') followed by '\\0'
+        delimited tokens. These follow the sequence PATH, ACTION, KIND_DATA* and
         mirror the parameters to ``add``.
 
         :return: A bytesequence.
@@ -405,7 +415,7 @@ class Journal(object):
                 output.extend(kind_data[1].as_tokens())
             else:
                 output.extend(kind_data.as_tokens())
-        return 'l-mirror-journal-1\n' + '\0'.join(output)
+        return 'l-mirror-journal-2\n' + '\0'.join(output)
 
 
 def parse(a_bytestring):
@@ -413,37 +423,53 @@ def parse(a_bytestring):
     
     :return: A Journal.
     """
-    header = 'l-mirror-journal-1\n'
-    if not a_bytestring.startswith(header):
-        raise ValueError('Not a journal: missing header %r in %r' % (
-            header, a_bytestring))
-    content = a_bytestring[len(header):]
+    header1 = 'l-mirror-journal-1\n'
+    header2 = 'l-mirror-journal-2\n'
+    if not a_bytestring.startswith(header1):
+        if not a_bytestring.startswith(header2):
+            raise ValueError('Not a journal: missing header %r' % (
+                a_bytestring,))
+        else:
+            def parse_kind_data(tokens, pos):
+                kind = tokens[pos]
+                pos += 1
+                if kind == 'file':
+                    return FileContent(tokens[pos], int(tokens[pos+1]), float(tokens[pos+2])), pos + 3
+                elif kind == 'dir':
+                    return DirContent(), pos
+                elif kind == 'symlink':
+                    return SymlinkContent(tokens[pos]), pos + 1
+                else:
+                    raise ValueError('unknown kind %r at token %d.' % (kind, pos))
+            content = a_bytestring[len(header2):]
+    else:
+        def parse_kind_data(tokens, pos):
+            kind = tokens[pos]
+            pos += 1
+            if kind == 'file':
+                return FileContent(tokens[pos], int(tokens[pos+1]), None), pos + 2
+            elif kind == 'dir':
+                return DirContent(), pos
+            elif kind == 'symlink':
+                return SymlinkContent(tokens[pos]), pos + 1
+            else:
+                raise ValueError('unknown kind %r at token %d.' % (kind, pos))
+        content = a_bytestring[len(header1):]
     tokens = content.split('\x00')
     result = Journal()
     pos = 0
     if tokens[-1] == '':
         del tokens[-1]
-    def parse_kind_data(pos):
-        kind = tokens[pos]
-        pos += 1
-        if kind == 'file':
-            return FileContent(tokens[pos], int(tokens[pos+1])), pos + 2
-        elif kind == 'dir':
-            return DirContent(), pos
-        elif kind == 'symlink':
-            return SymlinkContent(tokens[pos]), pos + 1
-        else:
-            raise ValueError('unknown kind %r at token %d.' % (kind, pos))
     while pos < len(tokens):
         path = tokens[pos]
         pos += 1
         action = tokens[pos]
         pos += 1
         if action in ('new', 'del'):
-            kind_data, pos = parse_kind_data(pos)
+            kind_data, pos = parse_kind_data(tokens, pos)
         elif action == 'replace':
-            kind_data1, pos = parse_kind_data(pos)
-            kind_data2, pos = parse_kind_data(pos)
+            kind_data1, pos = parse_kind_data(tokens, pos)
+            kind_data2, pos = parse_kind_data(tokens, pos)
             kind_data = kind_data1, kind_data2
         result.add(path, action, kind_data)
     return result
@@ -625,6 +651,17 @@ class TransportReplay(object):
                 raise ValueError(
                     'read incorrect content for %r, got sha %r wanted %r' % (
                     path, source.sha1.hexdigest(), content.sha1))
+            if content.mtime is not None:
+                # Perhaps the first param - atime - should be 'now'.
+                try:
+                    os.utime(tempname, (content.mtime, content.mtime))
+                except OSError, e:
+                    # swallow no-such-file errors: they primarily indicate that
+                    # the test suite is running against memory, with files that
+                    # don't exist, and if something has gone wrong, the
+                    # rename-into-place call will detect that anyway.
+                    if e.errno != errno.ENOENT:
+                        raise
         finally:
             a_file.close()
         return lambda: self.ensure_file(tempname, path, content)

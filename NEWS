@@ -5,6 +5,14 @@ lmirror changes
 NEXT (in development)
 =====================
 
+Changes
++++++++
+
+* New journals will now include the mtime of files (but not directories, as
+  directory mtime setting and reading is not portable). This change changes
+  the disk format of journals, so 0.0.2 or newer is needed to read these
+  journals.
+
 0.0.1
 =====
 

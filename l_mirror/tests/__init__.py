@@ -25,9 +25,12 @@ a module l_mirror.foo.bar are in a test module l_mirrr.tests.foo.test_bar.
 
 import unittest
 
+from bzrlib.transport.memory import MemoryServer
 import testresources
 from testscenarios import generate_scenarios
 from testtools import TestCase
+
+from l_mirror.tests import memory_transport_stat
 
 class ResourcedTestCase(TestCase, testresources.ResourcedTestCase):
     """Make all l_mirror tests have resource support."""
@@ -37,6 +40,15 @@ class ResourcedTestCase(TestCase, testresources.ResourcedTestCase):
         testresources.ResourcedTestCase.setUpResources(self)
         self.addCleanup(testresources.ResourcedTestCase.tearDownResources,
             self)
+
+    def setup_memory(self):
+        """Create a memory url server and return its url."""
+        # XXX: integrate with ui.here better.
+        self.transport_factory = MemoryServer()
+        self.transport_factory.start_server()
+        self.addCleanup(self.transport_factory.stop_server)
+        self.addCleanup(memory_transport_stat.install())
+        return self.transport_factory.get_url()
 
 
 def test_suite():
