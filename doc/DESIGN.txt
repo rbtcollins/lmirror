@@ -251,9 +251,10 @@ Journal Contents
 
 Journals contain a list of path changes: new, deleted and replaced. Enough
 data is included to tell if the mirror was locally modified, and to tell that
-when replaying a journal the right content is obtained. mtimes on files are 
-not preserved: there doesn't seem to be a strict need for them at this point,
-and it is simpler not to: we can add them in future if there is a need.
+when replaying a journal the right content is obtained. mode and ownership on
+files are not preserved: there doesn't seem to be a strict need for them at
+this point, and it is simpler not to: we can add them in future if there is a
+need.
 
 Journals should be bz2'd or similar, though this is not done yet.
 

@@ -352,4 +352,6 @@ Copying of files
 When files are copying they are written to a temporary file called
 $FILENAME.lmirrortemp. After checking that the file has the expected sha1 it is
 renamed into place. If a partial update is interrupted it may leave these temp
-files. lmirror won't ever include these in a journal however. Currently mode, timestamp and permissions are not copied by lmirror - however this is very likely to change.
+files. lmirror won't ever include these in a journal however. Currently mode,
+and ownership are not copied by lmirror - however this is very likely to
+change.
