@@ -652,19 +652,18 @@ class TransportReplay(object):
                     'read incorrect content for %r, got sha %r wanted %r' % (
                     path, source.sha1.hexdigest(), content.sha1))
             if content.mtime is not None:
-                temppath = self.contentdir.local_abspath(tempname)
                 try:
+                    temppath = self.contentdir.local_abspath(tempname)
+                except errors.NotLocalUrl, e:
+                    # swallow NotLocalUrl errors: they primarily indicate that
+                    # the test suite is running against memory, with files that
+                    # don't exist.
+                    self.ui.output_log(4, __name__,
+                        'Failed to set mtime for %r - nonlocal url %r.' % (
+                        tempname, self.contentdir))
+                else:
                     # Perhaps the first param - atime - should be 'now'.
                     os.utime(temppath, (content.mtime, content.mtime))
-                except OSError, e:
-                    # swallow no-such-file errors: they primarily indicate that
-                    # the test suite is running against memory, with files that
-                    # don't exist, and if something has gone wrong, the
-                    # rename-into-place call will detect that anyway.
-                    if e.errno != errno.ENOENT:
-                        raise
-                    self.ui.output_log(4, __name__,
-                        'Failed to set mtime for %r' % (temppath,))
         finally:
             a_file.close()
         return lambda: self.ensure_file(tempname, path, content)
