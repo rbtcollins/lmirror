@@ -31,6 +31,10 @@ class PathArgument(AbstractArgument):
     """An argument that parses into bzrlib LocalTransport objects."""
 
     def _parse_one(self, arg):
+        if arg.startswith('http:'):
+            arg = 'http+urllib:' + arg[5:]
+        if arg.startswith('https:'):
+            arg = 'https+urllib:' + arg[6:]
         result = get_transport(arg)
         # trigger a check that this is local
         try:
