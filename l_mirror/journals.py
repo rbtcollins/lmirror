@@ -56,6 +56,9 @@ class PathContent(object):
     :ivar kind: The kind of the path.
     """
 
+    def __hash__(self):
+        return hash(tuple(self.as_tokens()))
+
     def __eq__(self, other):
         return type(other) == type(self) and self.__dict__ == other.__dict__
 
@@ -417,6 +420,39 @@ class Journal(object):
                 output.extend(kind_data.as_tokens())
         return 'l-mirror-journal-2\n' + '\0'.join(output)
 
+    def as_groups(self):
+        """Create a series of groups that can be acted on to apply the journal.
+        
+        :Return: An iterator of groups. Each group is a list of (action, path,
+            content).
+        """
+        groups = []
+        adds = []
+        deletes = []
+        replaces = []
+        for path, (action, content) in self.paths.iteritems():
+            if action == 'new':
+                adds.append((action, path, content))
+            elif action == 'del':
+                deletes.append((action, path, content))
+            elif action == 'replace':
+                replaces.append((action, path, content))
+            else:
+                raise ValueError('unknown action %r for %r' % (action, path))
+        # Ordering /can/ be more complex than just adds/replace/deletes:
+        # might have an add blocked on a replace making a dir above it. Likewise
+        # A delete might have to happen before a replace when a dir becomes a 
+        # file. When we do smarter things, we'll have to just warn that we may
+        # not honour general goals/policy if the user has given us such a
+        # transform.
+        # For now, simplest thing possible - want to get the concept performance
+        # evaluated.
+        adds.sort()
+        replaces.sort(reverse=True)
+        # Children go first when deleting a tree
+        deletes.sort(reverse=True)
+        return  [adds, replaces, deletes]
+
 
 def parse(a_bytestring):
     """Parse a_bytestring into a journal.
@@ -475,82 +511,291 @@ def parse(a_bytestring):
     return result
 
 
+class Action(object):
+    """An action that can be taken.
+    
+    :ivar type: new/replace/del - the action type.
+    :ivar path: The path being acted on.
+    :ivar content: The content being acted on. For deletes the old content, for
+        new the content, and for replaces the old, new content.
+    """
+    
+    def __init__(self, action_type, path, content):
+        """Create an Action."""
+        self.type = action_type
+        self.path = path
+        self.content = content
+
+    def as_bytes(self):
+        """Return a generator of bytes for this action.
+
+        This contains the type
+        
+        :param sourcedir: A Transport to read new file content from.
+        """
+        if self.type == 'replace':
+            content_list = []
+            content_list.extend(self.content[0].as_tokens())
+            content_list.extend(self.content[1].as_tokens())
+            content_bytes = "\x00".join(content_list)
+            content = self.content[1]
+        else:
+            content_bytes = '\x00'.join(self.content.as_tokens())
+            if self.type == 'new':
+                content = self.content
+            else:
+                content = None
+        yield "%s\x00%s\x00%s\x00" % (self.path, self.type, content_bytes)
+        if content and content.kind == 'file':
+            source = self.get_file()
+            remaining = content.length
+            while remaining:
+                read_size = min(remaining, 65536)
+                read_content = source.read(read_size)
+                remaining -= len(read_content)
+                if not read_content:
+                    raise ValueError('0 byte read, expected %d' % read_size)
+                yield read_content
+
+    def get_file(self):
+        """Get a file like object for file content for this action."""
+        raise NotImplementedError(self)
+
+    def ignore_file(self):
+        """Tell the action that its file content is being skipped."""
+
+
+class TransportAction(Action):
+    """An Action which gets file content from a transport.
+    
+    :ivar sourcedir: Transport to read file content from.
+    """
+
+    def __init__(self, action_type, path, content, sourcedir):
+        Action.__init__(self, action_type, path, content)
+        self.sourcedir = sourcedir
+
+    def get_file(self):
+        """Get the content for a new file as a file-like object."""
+        return self.sourcedir.get(self.path)
+
+
+class StreamedAction(Action):
+    """An Action which gets file content from a FromFileGenerator."""
+
+    def __init__(self, action_type, path, content, generator):
+        Action.__init__(self, action_type, path, content)
+        self.generator = generator
+
+    def get_file(self):
+        if self.type == 'replace':
+            content = self.content[1]
+        else:
+            content = self.content
+        assert content.kind == 'file'
+        return BufferedFile(self.generator, content.length)
+
+    def ignore_file(self):
+        self.get_file().close()
+
+
+class BufferedFile(object):
+    """A file-like object which reads from a FromFileGenerator's stream."""
+
+    def __init__(self, generator, remaining):
+        self.generator = generator
+        self.remaining = remaining
+
+    def read(self, count=None):
+        if count is None:
+            count = self.remaining
+        read_size = min(self.remaining, count)
+        read_content = self.generator._next_bytes(read_size)
+        self.remaining -= len(read_content)
+        return read_content
+
+    def close(self):
+        while self.remaining:
+            self.read()
+
+
+class ReplayGenerator(object):
+    """Generate the data needed to perform a replay of a journal.
+
+    The stream method returns a generator of objects which can be either
+    converted to an action, or to bytes.
+
+    :ivar journal: The journal being generated from.
+    :ivar sourcedir: The transport content is read from.
+    :ivar ui: A UI for reporting with.
+    """
+
+    def __init__(self, journal, sourcedir, ui):
+        """Create a ReplayGenerator.
+
+        :param journal: The journal to replay.
+        :param sourcedir: The transport to read from.
+        :param ui: The ui to use for reporting.
+        """
+        self.journal = journal
+        self.sourcedir = sourcedir
+        self.ui = ui
+
+    def stream(self):
+        """Generate the stream."""
+        groups = self.journal.as_groups()
+        for group in groups:
+            for action, path, content in group:
+                yield TransportAction(action, path, content, self.sourcedir)
+
+    def as_bytes(self):
+        """Return a generator of bytestrings for this generator's content."""
+        for item in self.stream():
+            for segment in item.as_bytes():
+                yield segment
+
+
+class FromFileGenerator(object):
+    """A ReplayGenerator that pulls from a file in read-once, no-seeking mode.
+
+    This is used for streaming from HTTP servers.
+    """
+
+    def __init__(self, stream):
+        self._stream = stream
+        self.buffered_bytes = []
+
+    def parse_kind_data(self, tokens):
+        pos = 2
+        kind = tokens[pos]
+        pos += 1
+        if kind == 'file':
+            return FileContent(tokens[pos], int(tokens[pos+1]), float(tokens[pos+2])), pos + 3
+        elif kind == 'dir':
+            return DirContent(), pos
+        elif kind == 'symlink':
+            return SymlinkContent(tokens[pos]), pos + 1
+        else:
+            raise ValueError('unknown kind %r at token %d.' % (kind, pos))
+
+    def stream(self):
+        """Generate an object-level stream."""
+        while True:
+            # TODO: make this more efficient: but wait till its shown to be a
+            # key issue to address.
+            some_bytes = self._next_bytes(4096)
+            tokens = some_bytes.split('\x00')
+            path = tokens[0]
+            action = tokens[1]
+            kind = tokens[2]
+            if action in ('new', 'del'):
+                kind_data, pos = self.parse_kind_data(tokens)
+            elif action == 'replace':
+                kind_data1, pos = self.parse_kind_data(tokens)
+                kind_data2, pos = self.parse_kind_data(tokens)
+                kind_data = kind_data1, kind_data2
+            else:
+                raise ValueError('unknown action %r' % action)
+            self._push('\x00'.join(tokens[pos:]))
+            yield StreamedAction(action, path, kind_data, self)
+
+    def _next_bytes(self, count):
+        """Return up to count bytes.
+
+        :return some bytes: An empty string indicates end of file.
+        """
+        assert count > 0
+        if not self.buffered_bytes:
+            return self._stream.read(count)
+        if count >= len(self.buffered_bytes[0]):
+            partial = self.buffered_bytes.pop(0)
+            return partial + self._next_bytes(count - len(partial))
+        result = self.buffered_bytes[0][:count]
+        self.buffered_bytes[0] = self.buffered_bytes[0][count:]
+        return result
+
+    def _push(self, unused_bytes):
+        self.buffered_bytes.insert(0, unused_bytes)
+
+    def as_bytes(self):
+        content = self._stream.read(65536)
+        while content:
+            yield content
+            content = self._stream.read(65536)
+
+
 class TransportReplay(object):
     """Replay a journal reading content from a transport.
 
     The replay() method is the main interface.
     
-    :ivar sourcedir: The transport to read from.
+    :ivar generator: A ReplayGenerator to read the actions and content from.
+        The generator is not trusted - its actions are cross checked against
+        journal.
     :ivar contentdir: The transport to apply changes to.
     :ivar journal: The journal to apply.
     :ivar ui: A UI for reporting with.
     """
 
-    def __init__(self, journal, sourcedir, contentdir, ui):
-        """Create a TransportReplay for journal from sourcedir to contentdir.
+    def __init__(self, journal, generator, contentdir, ui):
+        """Create a TransportReplay for journal from generator to contentdir.
 
         :param journal: The journal to replay.
-        :param sourcedir: The transport to read from.
+        :param generator: The ReplayGenerator to get new content from. All the
+            actions it supplies are cross checked against journal.
         :param contentdir: The transport to apply changes to.
         :param ui: The ui to use for reporting.
         """
         self.journal = journal
-        self.sourcedir = sourcedir
+        self.generator = generator.stream()
         self.contentdir = contentdir
         self.ui = ui
 
     def replay(self):
         """Replay the journal."""
-        adds = []
-        deletes = []
-        replaces = []
-        for path, (action, content) in self.journal.paths.iteritems():
-            if action == 'new':
-                adds.append((path, content))
-            elif action == 'del':
-                deletes.append((path, content))
-            elif action == 'replace':
-                replaces.append((path, content[0], content[1]))
-            else:
-                raise ValueError('unknown action %r for %r' % (action, path))
-        # Ordering /can/ be more complex than just adds/replace/deletes:
-        # might have an add blocked on a replace making a dir above it. Likewise
-        # A delete might have to happen before a replace when a dir becomes a 
-        # file. When we do smarter things, we'll have to just warn that we may
-        # not honour general goals/policy if the user has given us such a
-        # transform.
-        # For now, simplest thing possible - want to get the concept performance
-        # evaluated.
-        adds.sort()
-        for path, content in adds:
-            self.put_with_check(path, content)()
-        replaces.sort(reverse=True)
-        to_rename = []
-        try:
-            for path, _, new_content in replaces:
-                # TODO: (again, to do with replacing files with dirs:)
-                #       do not delay creating dirs needed for files below them.
-                to_rename.append(self.put_with_check(path, new_content))
-            for path, old_content, new_content in replaces:
-                # TODO: we may want to warn or perhaps have a strict mode here.
-                # e.g. handle already deleted things. This should become clear
-                # when recovery mode is done.
-                self.contentdir.delete(path)
-        finally:
-            for doit in to_rename:
-                doit()
-        # Children go first :)
-        deletes.sort(reverse=True)
-        for path,content in deletes:
-            self.ui.output_log(4, __name__, 'Deleting %s %r' % (content.kind, path))
+        groups = self.journal.as_groups()
+        for group in groups:
+            elements = set(group)
+            to_rename = []
+            to_delete = []
             try:
-                if content.kind != 'dir':
-                    self.contentdir.delete(path)
-                else:
-                    self.contentdir.rmdir(path)
-            except errors.NoSuchFile:
-                # Already gone, ignore it.
-                pass
+                while elements:
+                    action_obj = self.generator.next()
+                    # If this fails, generator has sent us some garbage.
+                    elements.remove((action_obj.type, action_obj.path,
+                        action_obj.content))
+                    action = action_obj.type
+                    path = action_obj.path
+                    content = action_obj.content
+                    if action == 'new':
+                        self.put_with_check(path, content, action_obj)()
+                    if action == 'replace':
+                        # TODO: (again, to do with replacing files with dirs:)
+                        #       do not delay creating dirs needed for files
+                        #       below them.
+                        to_rename.append(self.put_with_check(path, content[1],
+                            action_obj))
+                        to_delete.append((path, content[0]))
+                    if action == 'del':
+                        to_delete.append((path, content))
+                for path, content in to_delete:
+                    # Second pass on the group to handle deletes as late as possible
+                    # TODO: we may want to warn or perhaps have a strict mode here.
+                    # e.g. handle already deleted things. This should become clear
+                    # when recovery mode is done.
+                    self.ui.output_log(4, __name__, 'Deleting %s %r' %
+                        (content.kind, path))
+                    try:
+                        if content.kind != 'dir':
+                            self.contentdir.delete(path)
+                        else:
+                            self.contentdir.rmdir(path)
+                    except errors.NoSuchFile:
+                        # Already gone, ignore it.
+                        pass
+            finally:
+                for doit in to_rename:
+                    doit()
 
     def ensure_dir(self, path):
         """Ensure that path is a dir.
@@ -611,11 +856,12 @@ class TransportReplay(object):
             else:
                 raise
 
-    def put_with_check(self, path, content):
+    def put_with_check(self, path, content, action):
         """Put a_file at path checking that as received it matches content.
 
         :param path: A relpath.
         :param content: A content description of a file.
+        :param action: An action object which can supply file content.
         :return: A callable that will execute the rename-into-place - all the
             IO has been done before returning.
         """
@@ -631,10 +877,11 @@ class TransportReplay(object):
         # don't download content we don't need
         try:
             if self.check_file(path, content):
+                action.ignore_file()
                 return lambda:None
         except ValueError:
             pass
-        a_file = self.sourcedir.get(path)
+        a_file = action.get_file()
         source = _ShaFile(a_file)
         try:
             # FIXME: mode should be supplied from above, or use 0600 and chmod

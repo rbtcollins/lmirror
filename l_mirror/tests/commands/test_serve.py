@@ -17,21 +17,32 @@
 # License version 3.
 # 
 
-"""Tests for commands."""
+"""Tests for the serve command."""
 
-import unittest
+from doctest import ELLIPSIS
 
-def test_suite():
-    names = [
-        'commands',
-        'help',
-        'finish_change',
-        'start_change',
-        'init',
-        'mirror',
-        'serve',
-        ]
-    module_names = ['l_mirror.tests.commands.test_' + name for name in
-        names]
-    loader = unittest.TestLoader()
-    return loader.loadTestsFromNames(module_names)
+from bzrlib.transport import get_transport
+
+from testtools.matchers import DocTestMatches
+
+from l_mirror.commands import serve
+from l_mirror import mirrorset
+from l_mirror.ui.model import UI
+from l_mirror.tests import ResourcedTestCase
+from l_mirror.tests.logging_resource import LoggingResourceManager
+from l_mirror.tests.matchers import MatchesException
+
+
+class TestCommandServer(ResourcedTestCase):
+
+    resources = [('logging', LoggingResourceManager())]
+
+    def get_test_ui_and_cmd(self, args):
+        ui = UI(args=args)
+        cmd = serve.serve(ui)
+        ui.set_command(cmd)
+        return ui, cmd
+
+    # Some tests that would be good to write:
+    # - starts a server
+    # - outputs the port

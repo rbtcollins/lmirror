@@ -56,7 +56,10 @@ Definitions
   LMirror process running on the receiver to an LMirror process running on the
   sender, this is referred to as using a Smart protocol. The smart protocol
   can eliminate many round trips that occur when using dumb protocols and is
-  generally a more efficient way to mirror.
+  generally a more efficient way to mirror. In principle different sorts of
+  RPC mechanism are supported, but lmirror currently only supports HTTP. The
+  ``lmirror serve`` command will start up an HTTP server to serve one or more
+  mirror sets.
 
 * Sender: A node which other nodes can receive updates from. By default
   all nodes count as senders for dumb protocols, but specific configuration
@@ -195,16 +198,24 @@ Smart senders
 Smart senders require the same setup as a dumb sender in terms of config files
 and directory layout. However rather than publishing over a dumb protocol, a
 protocol that permits RPC calls is required (e.g. ssh where lmirror can be
-invoked on the server, or HTTP using POST to a CGI script). The primary
-advantage of smart senders is that network round trips can be eliminated - the
-lmirror process on the server can predict what data is needed and send it to
-the receiver. The down sides are:
+invoked on the server, or the build in HTTP WSGI server). The primary advantage
+of smart senders is that network round trips can be eliminated - the lmirror
+process on the server can predict what data is needed and send it to the
+receiver. The down sides are:
 
-* Server is running lmirror, which might have bugs or security holes.
+* The server is running lmirror, which might have bugs or security holes.
 
 * lmirror will take up some memory on the server for each client, which may
   reduce the total number of clients you can mirror too (while making each
-  mirror run faster).
+  transfer run much faster).
+
+Currently lmirror supports HTTP only, using a WSGI app. This can be started by
+running::
+
+ $ lmirror serve set [set ...]
+
+This will start an HTTP server on a dynamic port and print the port on stdout.
+The special set 'all' can be used to serve all the sets at a location.
 
 Running a root node
 ===================

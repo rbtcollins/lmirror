@@ -239,7 +239,7 @@ updating = False
         t = basedir.clone('.lmirror/sets/myname')
         t.put_bytes('lmirror.gpg', '')
         mirror.finish_change()
-        metadatadir = mirror._metadata()
+        metadatadir = mirror._metadatadir()
         self.assertEqual(
             "-----BEGIN PSEUDO-SIGNED CONTENT-----\n" +
             metadatadir.get_bytes('journals/1') +
@@ -291,7 +291,7 @@ updating = False
         t = basedir.clone('.lmirror/sets/myname')
         t.put_bytes('lmirror.gpg', '')
         mirror.finish_change()
-        metadatadir = mirror._metadata()
+        metadatadir = mirror._metadatadir()
         self.assertEqual(
             "-----BEGIN PSEUDO-SIGNED CONTENT-----\n" +
             metadatadir.get_bytes('journals/1') +
@@ -309,4 +309,4 @@ updating = False
             "-----BEGIN PSEUDO-SIGNED CONTENT-----\n" +
             metadatadir.get_bytes('journals/1') +
             "-----END PSEUDO-SIGNED CONTENT-----\n",
-            clone._metadata().get_bytes('journals/1.sig'))
+            clone._metadatadir().get_bytes('journals/1.sig'))

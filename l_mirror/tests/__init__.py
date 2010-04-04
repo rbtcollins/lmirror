@@ -68,6 +68,7 @@ def test_suite():
         'monkeypatch',
         'ui',
         'setup',
+        'server',
         'stubpackage',
         'stubhome',
         ]

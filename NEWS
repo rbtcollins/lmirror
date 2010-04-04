@@ -13,6 +13,9 @@ Changes
   the disk format of journals, so 0.0.2 or newer is needed to read these
   journals.
 
+* New command ``lmirror serve`` can serve out sets over HTTP (defaults to port
+  8080).
+
 0.0.1
 =====
 

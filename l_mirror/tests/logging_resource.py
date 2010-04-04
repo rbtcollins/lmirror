@@ -52,6 +52,7 @@ class LoggingResourceManager(TestResourceManager):
     def make(self, dep_resources):
         new_root = logging.RootLogger(logging.WARNING)
         new_manager = logging.Manager(new_root)
+        new_manager.emittedNoHandlerWarning = 1
         return OldState([monkeypatch('logging.root', new_root),
             monkeypatch('logging.Logger.root', new_root),
             monkeypatch('logging.Logger.manager', new_manager)])

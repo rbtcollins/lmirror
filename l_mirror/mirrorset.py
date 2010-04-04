@@ -78,7 +78,20 @@ def initialise(base, name, content_root, ui):
     return MirrorSet(base, name, ui)
 
 
-class MirrorSet(object):
+def MirrorSet(base, name, ui):
+    """Open a MirrorSet."""
+    try:
+        format = base.get_bytes('.lmirror/sets/%s/format' % name)
+    except NoSuchFile:
+        raise ValueError('No set %r - file not found' % name)
+    if format == '1\n':
+        return _MirrorSet(base, name, ui)
+    if format == 'LMirror Smart Server 1':
+        return HTTPMirrorSet(base, name, ui)
+    raise ValueError('Unrecognised set format %r' % format)
+
+
+class _MirrorSet(object):
     """A mirrorable directory structure - a set of files to be mirrored.
 
     This is the primary model object in lmirror, using it one can manage mirror
@@ -122,12 +135,6 @@ class MirrorSet(object):
         :param name: The name of the mirror set.
         :param ui: An l_mirror.ui.AbstractUI.
         """
-        try:
-            format = base.get_bytes('.lmirror/sets/%s/format' % name)
-        except NoSuchFile:
-            raise ValueError('No set %r - file not found' % name)
-        if format != '1\n':
-            raise ValueError('Unrecognised set format %r' % format)
         self.base = base
         self.name = name
         self.ui = ui
@@ -186,6 +193,10 @@ class MirrorSet(object):
             self._parse_content_conf()
         return self.includes
 
+    def _contentdir(self):
+        """Return a transport rooted at the content of this mirror set."""
+        return self.base
+
     def _is_signed(self):
         """Return true if the mirrorset is using gpg signatures."""
         return self._setdir().has('lmirror.gpg')
@@ -214,6 +225,25 @@ class MirrorSet(object):
             (self.name, self.base.base))
         metadata.set('metadata', 'updating', 'False')
         self._set_metadata(metadata)
+
+    def get_generator(self, from_journal, to_journal):
+        """Get a ReplayGenerator for some journals.
+
+        Signatures are not checked - the client should be cross checking and
+        signature checking.
+
+        :param from_journal: The first journal to include.
+        :param to_journal: The last journal to include.
+        """
+        needed = range(from_journal, to_journal + 1)
+        combiner = journals.Combiner()
+        journal_dir = self._journaldir()
+        for journal_id in needed:
+            journal_bytes = journal_dir.get_bytes(str(journal_id))
+            journal = journals.parse(journal_bytes)
+            combiner.add(journal)
+        return journals.ReplayGenerator(combiner.journal, self._contentdir(),
+            self.ui)
 
     def receive(self, another_mirrorset):
         """Perform a receive from another_mirrorset."""
@@ -255,8 +285,10 @@ class MirrorSet(object):
                 minijournal = journals.Journal()
                 minijournal.paths[keyringpath] = combiner.journal.paths[
                     keyringpath]
-                replayer = journals.TransportReplay(minijournal,
-                    another_mirrorset.base, self.base, self.ui)
+                generator = journals.ReplayGenerator(minijournal,
+                    another_mirrorset._contentdir(), self.ui)
+                replayer = journals.TransportReplay(minijournal, generator,
+                    self.base, self.ui)
                 replayer.replay()
                 for journal_id in needed:
                     try:
@@ -267,8 +299,11 @@ class MirrorSet(object):
                         continue
                     self.gpgv_strategy.verify(journal_dir, sig_name,
                         journal_dir.get_bytes(str(journal_id)))
+            # Now we have a journal that is GPG checked representing what we
+            # want to receive.
             replayer = journals.TransportReplay(combiner.journal,
-                another_mirrorset.base, self.base, self.ui)
+                another_mirrorset.get_generator(latest + 1, source_latest),
+                self.base, self.ui)
             replayer.replay()
             metadata.set('metadata', 'latest', str(source_latest))
             metadata.set('metadata', 'timestamp',
@@ -318,24 +353,24 @@ class MirrorSet(object):
     def _content_root_dir(self):
         return self.base.clone(self.content_root_path())
 
-    def _metadata(self):
+    def _metadatadir(self):
         """Get the transport for metadata."""
         return self.base.clone('.lmirror/metadata/%s' % self.name)
 
     def _journaldir(self):
         """Get the transport for journals."""
-        return self._metadata().clone('journals')
+        return self._metadatadir().clone('journals')
 
     def _set_metadata(self, metadata):
         """Update metadata on disk."""
         output = StringIO()
         metadata.write(output)
-        self._metadata().put_bytes('metadata.conf', output.getvalue())
+        self._metadatadir().put_bytes('metadata.conf', output.getvalue())
 
     def _get_metadata(self):
         """Get a config parser with the metadata contents in it."""
         parser = OrderedConfigParser()
-        parser.readfp(self._metadata().get('metadata.conf'))
+        parser.readfp(self._metadatadir().get('metadata.conf'))
         return parser
 
     def _get_settings(self):
@@ -343,6 +378,24 @@ class MirrorSet(object):
         parser = OrderedConfigParser()
         parser.readfp(self._setdir().get('set.conf'))
         return parser
+
+
+class HTTPMirrorSet(_MirrorSet):
+    """Specialised MirrorSet to use an HTTP Smart server."""
+
+    def _metadatadir(self):
+        """Get the transport for metadata."""
+        return self.base.clone('metadata/%s' % self.name)
+
+    def _contentdir(self):
+        """Return a transport rooted at the content of this mirror set."""
+        return self.base.clone('content/%s' % self.name)
+
+    def get_generator(self, from_journal, to_journal):
+        # Work around https://bugs.edge.launchpad.net/bzr/+bug/555032
+        code, stream = self.base._get('stream/%s/%s/%s' % (self.name, from_journal,
+            to_journal), None)
+        return journals.FromFileGenerator(stream)
 
 
 class OrderedConfigParser(ConfigParser.ConfigParser):

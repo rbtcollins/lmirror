@@ -347,12 +347,40 @@ class TestTransportReplay(ResourcedTestCase):
         j1.add('new', 'new', journals.FileContent('c129b324aee662b04eccf68babba85851346dff9', 8, None))
         del basedir._activity[:]
         ui = UI()
-        replay = journals.TransportReplay(j1, sourcedir, basedir, ui)
+        generator = journals.ReplayGenerator(j1, sourcedir, ui)
+        replay = journals.TransportReplay(j1, generator, basedir, ui)
         replay.replay()
         self.assertEqual([('get', 'new'), ('rename', 'new.lmirrortemp', 'new'),
             ('get', 'abc'), ('get', 'abc'), ('delete', 'abc'), ('rename',
             'abc.lmirrortemp', 'abc'), ('delete', 'bye')],
             basedir._activity)
+
+
+class TestReplayGenerator(ResourcedTestCase):
+
+    def test_orders_new_replace_delete(self):
+        # new-replace-delete is a sane default order.
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        basedir.put_bytes('abc', 'def')
+        basedir.put_bytes('bye', 'by')
+        sourcedir = basedir.clone('../source')
+        sourcedir.create_prefix()
+        sourcedir.put_bytes('abc', '123412341234')
+        sourcedir.put_bytes('new', '12341234')
+        j1 = journals.Journal()
+        j1.add('abc', 'replace', (
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 3, None),
+            journals.FileContent('5a78babbb162531b3a16c55310a4e7228d68f2e9', 12, None)))
+        j1.add('bye', 'del', journals.FileContent('d', 2, None))
+        j1.add('new', 'new',
+            journals.FileContent('c129b324aee662b04eccf68babba85851346dff9', 8, None))
+        ui = UI()
+        stream = journals.ReplayGenerator(j1, sourcedir, ui)
+        content = list(stream.as_bytes())
+        content = ''.join(content)
+        expected = 'new\x00new\x00file\x00c129b324aee662b04eccf68babba85851346dff9\x008\x00None\x0012341234abc\x00replace\x00file\x0012039d6dd9a7e27622301e935b6eefc78846802e\x003\x00None\x00file\x005a78babbb162531b3a16c55310a4e7228d68f2e9\x0012\x00None\x00123412341234bye\x00del\x00file\x00d\x002\x00None\x00'
+        self.assertEqual(expected, content)
 
 
 class TestParser(ResourcedTestCase):
