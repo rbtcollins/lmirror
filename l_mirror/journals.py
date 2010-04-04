@@ -592,7 +592,9 @@ class StreamedAction(Action):
             content = self.content[1]
         else:
             content = self.content
-        assert content.kind == 'file'
+        if content.kind != 'file':
+            raise ValueError('invalid call to get_file: kind is %r' %
+                content.kind)
         return BufferedFile(self.generator, content.length)
 
     def ignore_file(self):
@@ -610,6 +612,8 @@ class BufferedFile(object):
         if count is None:
             count = self.remaining
         read_size = min(self.remaining, count)
+        if not read_size:
+            return ''
         read_content = self.generator._next_bytes(read_size)
         self.remaining -= len(read_content)
         return read_content
@@ -704,7 +708,8 @@ class FromFileGenerator(object):
 
         :return some bytes: An empty string indicates end of file.
         """
-        assert count > 0
+        if count <= 0:
+            raise ValueError('attempt to read 0 bytes!')
         if not self.buffered_bytes:
             return self._stream.read(count)
         if count >= len(self.buffered_bytes[0]):
