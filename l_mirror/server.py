@@ -122,13 +122,19 @@ class _RootApp(object):
         """WSGI serve-a-response interface - dispatches to different urls."""
         path = environ['PATH_INFO']
         # format probes
-        if path.startswith(self.SETS_PREFIX) and path.endswith('/format'):
-            name = path[len(self.SETS_PREFIX):-7]
+        if path.startswith(self.SETS_PREFIX):
+            name = path[len(self.SETS_PREFIX):].split('/')[0]
             self._check_name(name)
-            app = fileapp.DataApp('LMirror Smart Server 1',
-                content_type='text/plain')
-            app.cache_control(public=True, max_age=3600)
-            return app(environ, start_response)
+            if path.endswith('/format'):
+                app = fileapp.DataApp('LMirror Smart Server 1',
+                    content_type='text/plain')
+                app.cache_control(public=True, max_age=3600)
+                return app(environ, start_response)
+            elif path.endswith('/set.conf'):
+                mirrorset = self.server.mirrorsets[name]
+                app = _TransportFileApp(mirrorset._get_settings_file(), None,
+                    content_type='text/plain')
+                return app(environ, start_response)
         # metadata retrieval
         if path.startswith(self.METADATA_PREFIX):
             mirrorset, remainder = self._parse_url(path)
@@ -216,7 +222,8 @@ class _TransportFileApp(fileapp.DataApp):
     def get(self, environ, start_response):
         is_head = environ['REQUEST_METHOD'].upper() == 'HEAD'
         headers = self.headers[:]
-        CONTENT_LENGTH.update(headers, self.content_length)
+        if self.content_length is not None:
+            CONTENT_LENGTH.update(headers, self.content_length)
         start_response('200 OK', headers)
         if is_head:
             return ['']

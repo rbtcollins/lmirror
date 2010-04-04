@@ -376,8 +376,11 @@ class _MirrorSet(object):
     def _get_settings(self):
         """Get a config parser with the set config contents in it."""
         parser = OrderedConfigParser()
-        parser.readfp(self._setdir().get('set.conf'))
+        parser.readfp(self._get_settings_file())
         return parser
+
+    def _get_settings_file(self):
+        return self._setdir().get('set.conf')
 
 
 class HTTPMirrorSet(_MirrorSet):
