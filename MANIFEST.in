@@ -1,0 +1,6 @@
+include .bzrignore
+include .testr.conf
+include *.txt
+include doc/*.txt
+include Makefile
+include NEWS
