@@ -11,6 +11,7 @@ Build dependencies
  * python-docutils (for rst2html)
  * make
  * testrepository
+ * testresources (used for test isolation infrastructure)
 
 Runtime dependencies
 --------------------
