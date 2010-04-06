@@ -398,7 +398,7 @@ class HTTPMirrorSet(_MirrorSet):
         # Work around https://bugs.edge.launchpad.net/bzr/+bug/555032
         code, stream = self.base._get('stream/%s/%s/%s' % (self.name, from_journal,
             to_journal), None)
-        return journals.FromFileGenerator(stream)
+        return journals.FromFileGenerator(stream, self.ui)
 
 
 class OrderedConfigParser(ConfigParser.ConfigParser):

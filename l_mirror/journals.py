@@ -34,7 +34,9 @@ DiskUpdater is a class to compare a memory 'tree' and a bzr transport and
 output a journal to update the tree to match the transport.
 
 Various Replay objects can replay a journal. TransportReplay replays a journal
-by reading the file content from a transport object.
+by reading the file content from a transport object. ReplayGenerator is the
+core workhorse for streaming the data needed to do a replay; it is serialised
+when streaming from http and deserialised by FromFileGenerator.
 """
 
 __all__ = ['parse', 'Combiner', 'Journal', 'DiskUpdater', 'TransportReplay']
@@ -526,6 +528,9 @@ class Action(object):
         self.path = path
         self.content = content
 
+    def __repr__(self):
+        return "Action: %r %s %s" % (self.path, self.type, self.content)
+
     def as_bytes(self):
         """Return a generator of bytes for this action.
 
@@ -583,9 +588,10 @@ class TransportAction(Action):
 class StreamedAction(Action):
     """An Action which gets file content from a FromFileGenerator."""
 
-    def __init__(self, action_type, path, content, generator):
+    def __init__(self, action_type, path, content, generator, ui):
         Action.__init__(self, action_type, path, content)
         self.generator = generator
+        self.ui = ui
 
     def get_file(self):
         if self.type == 'replace':
@@ -595,7 +601,7 @@ class StreamedAction(Action):
         if content.kind != 'file':
             raise ValueError('invalid call to get_file: kind is %r' %
                 content.kind)
-        return BufferedFile(self.generator, content.length)
+        return BufferedFile(self.generator, content.length, self.ui)
 
     def ignore_file(self):
         self.get_file().close()
@@ -604,14 +610,16 @@ class StreamedAction(Action):
 class BufferedFile(object):
     """A file-like object which reads from a FromFileGenerator's stream."""
 
-    def __init__(self, generator, remaining):
+    def __init__(self, generator, remaining, ui):
         self.generator = generator
         self.remaining = remaining
+        self.ui = ui
 
     def read(self, count=None):
         if count is None:
             count = self.remaining
         read_size = min(self.remaining, count)
+        self.ui.output_log(1, __name__, "Reading from stream, read_size=%d remaining=%d" % (read_size, self.remaining))
         if not read_size:
             return ''
         read_content = self.generator._next_bytes(read_size)
@@ -665,9 +673,10 @@ class FromFileGenerator(object):
     This is used for streaming from HTTP servers.
     """
 
-    def __init__(self, stream):
+    def __init__(self, stream, ui):
         self._stream = stream
         self.buffered_bytes = []
+        self.ui = ui
 
     def parse_kind_data(self, tokens):
         pos = 2
@@ -701,7 +710,7 @@ class FromFileGenerator(object):
             else:
                 raise ValueError('unknown action %r' % action)
             self._push('\x00'.join(tokens[pos:]))
-            yield StreamedAction(action, path, kind_data, self)
+            yield StreamedAction(action, path, kind_data, self, self.ui)
 
     def _next_bytes(self, count):
         """Return up to count bytes.
@@ -714,7 +723,10 @@ class FromFileGenerator(object):
             return self._stream.read(count)
         if count >= len(self.buffered_bytes[0]):
             partial = self.buffered_bytes.pop(0)
-            return partial + self._next_bytes(count - len(partial))
+            if len(partial) < count:
+                return partial + self._next_bytes(count - len(partial))
+            else:
+                return partial
         result = self.buffered_bytes[0][:count]
         self.buffered_bytes[0] = self.buffered_bytes[0][count:]
         return result
@@ -759,12 +771,15 @@ class TransportReplay(object):
     def replay(self):
         """Replay the journal."""
         groups = self.journal.as_groups()
-        for group in groups:
+        for pos, group in enumerate(groups):
+            self.ui.output_log(4, __name__, "Processing group %d of %d with %d elements" % (pos, len(groups), len(group)))
             elements = set(group)
+            assert len(elements) == len(group)
             to_rename = []
             to_delete = []
             try:
                 while elements:
+                    self.ui.output_log(3, __name__, "Waiting for element, %d remaining" % (len(elements),))
                     action_obj = self.generator.next()
                     # If this fails, generator has sent us some garbage.
                     elements.remove((action_obj.type, action_obj.path,

@@ -5,6 +5,12 @@ lmirror changes
 NEXT (in development)
 =====================
 
+Bug fixes
++++++++++
+
+* Content falling precisely on the end of a buffer would hang the client -
+  fixed.
+
 0.0.2
 =====
 
