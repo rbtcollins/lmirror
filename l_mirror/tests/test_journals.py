@@ -471,3 +471,36 @@ class TestDiskUpdater(ResourcedTestCase):
             '.lmirror/sets/name/abc': ('new', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, 0)),
             }
         self.assertEqual(expected, journal.paths)
+
+    def test_filter_callback(self):
+        ui = self.get_test_ui()
+        now = time.time()
+        four_seconds = now - 4
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        ui = self.get_test_ui()
+        basedir.create_prefix()
+        basedir.mkdir('dir1')
+        basedir.mkdir('dir2')
+        basedir.put_bytes('abc', '1234567890\n')
+        basedir.put_bytes('dir1/def', 'abcdef')
+        last_timestamp = 0 # get everything
+        paths = []
+        results = {'abc': None, 'dir1':True, 'dir2':False, 'dir1/def':None}
+        def filter(path):
+            """Filter path:
+
+            :return: True to include a path, False to excldue it, and None to
+                not influence it at all.
+            """
+            paths.append(path)
+            return results[path]
+        updater = journals.DiskUpdater({}, basedir, 'name', last_timestamp, ui, filter_callback=filter)
+        journal = updater.finished()
+        expected = {
+            'dir1': ('new', journals.DirContent()),
+            'abc': ('new', journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 11, 0)),
+            'dir1/def': ('new', journals.FileContent('1f8ac10f23c5b5bc1167bda84b833e5c057a77d2', 6, 0))
+            }
+        self.assertEqual(expected, journal.paths)
+        self.assertEqual(set(['dir2', 'dir1', 'abc', 'dir1/def']), set(paths))

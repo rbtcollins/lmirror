@@ -11,6 +11,11 @@ Bug fixes
 * Content falling precisely on the end of a buffer would hang the client -
   fixed.
 
+API Changes
++++++++++++
+
+* ``l_mirror.journals.DiskUpdater`` can now callback to user code per-file.
+
 0.0.2
 =====
 

@@ -242,10 +242,16 @@ class DiskUpdater(object):
         '^foo/(?!bar(?$|/)', or exclude paths starting with foo, and include
         both foo and bar explicitly: exclude '^foo(?:$|/)' and include '^foo$',
         '^foo/bar(?$|/)'.
+    :ivar filter_callback: A filter which is applid to all paths. If the filter
+        returns False for a path, the path is considered to be excluded (as if
+        it had matched the exclude_re); if the filter returns True, then the
+        path is considered included as if it matched the include_re. Finally,
+        if the filter returns None, the path is not influenced by the filter
+        callback.
     """
 
     def __init__(self, tree, transport, name, last_timestamp, ui,
-        excludes=(), includes=()):
+        excludes=(), includes=(), filter_callback=lambda path:None):
         """Create a DiskUpdater.
 
         :param tree: The tree to compare with.
@@ -261,6 +267,8 @@ class DiskUpdater(object):
             the exclude_re.
         :param includes: An optional list of uncompiled regexes to include in
             the include_re.
+        :param filter_callback: A path filter. See the class docstring for
+            details.
         """
         self.tree = tree
         self.transport = transport
@@ -273,6 +281,7 @@ class DiskUpdater(object):
         self.include_re = re.compile(self._make_re_str(includes))
         excludes = [r'(?:^|/)\.lmirror/'] + list(excludes)
         self.exclude_re = re.compile(self._make_re_str(excludes))
+        self.filter_callback = filter_callback
 
     def _make_re_str(self, re_strs):
         re_strs = ['(?:%s)' % re_str for re_str in re_strs]
@@ -366,7 +375,11 @@ class DiskUpdater(object):
             # metadata is transmitted by the act of fetching the
             # journal.
             return True
-        if self.exclude_re.search(path) and not self.include_re.search(path):
+        filter_result = self.filter_callback(path)
+        excluded = filter_result is False
+        included = filter_result is True
+        if ((excluded or self.exclude_re.search(path)) and
+            not (included or self.include_re.search(path))):
             return True
         return False
 
