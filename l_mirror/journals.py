@@ -384,6 +384,34 @@ class DiskUpdater(object):
         return False
 
 
+class FilterCombiner(object):
+    """An updater filter to combine other filters.
+
+    This holds a list of filters to combine.  Filters that return True short
+    circuit further evaluation. If no filter returns True, if any return False
+    False is returned, otherwise None.
+
+    :ivar filters: The filters.
+    """
+
+    def __init__(self, *filters):
+        """Create a FilterCombiner.
+
+        :param filters: The filters to combine.
+        """
+        self.filters = filters
+
+    def __call__(self, path):
+        result = None
+        for filter in self.filters:
+            next_result = filter(path)
+            if next_result:
+                return True
+            if next_result is False:
+                result = next_result
+        return result
+
+
 class Journal(object):
     """A journal of changes to a file system.
     

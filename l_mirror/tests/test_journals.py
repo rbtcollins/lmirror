@@ -504,3 +504,24 @@ class TestDiskUpdater(ResourcedTestCase):
             }
         self.assertEqual(expected, journal.paths)
         self.assertEqual(set(['dir2', 'dir1', 'abc', 'dir1/def']), set(paths))
+
+
+class TestFilterCombiner(ResourcedTestCase):
+
+    def test_include_short_circuits(self):
+        def filter(path): return True
+        def boom(path): raise NotImplementedError(boom)
+        combiner = journals.FilterCombiner(filter, boom)
+        self.assertEqual(True, combiner('foo'))
+
+    def test_False_wins_over_None_first(self):
+        def false(path): return False
+        def none(path): return None
+        combiner = journals.FilterCombiner(false, none)
+        self.assertEqual(False, combiner('foo'))
+
+    def test_False_wins_over_None_last(self):
+        def false(path): return False
+        def none(path): return None
+        combiner = journals.FilterCombiner(none, false)
+        self.assertEqual(False, combiner('foo'))
