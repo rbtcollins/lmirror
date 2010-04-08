@@ -31,7 +31,9 @@ generate the model of a tree on disk, or a new journal with redundant changes
 eliminated.
 
 DiskUpdater is a class to compare a memory 'tree' and a bzr transport and 
-output a journal to update the tree to match the transport.
+output a journal to update the tree to match the transport. DiskUpdater uses
+a helper filter object to do path filtering. FilterCombiner and ProcessFilter
+are useful helpers for such filtering.
 
 Various Replay objects can replay a journal. TransportReplay replays a journal
 by reading the file content from a transport object. ReplayGenerator is the
@@ -39,7 +41,9 @@ core workhorse for streaming the data needed to do a replay; it is serialised
 when streaming from http and deserialised by FromFileGenerator.
 """
 
-__all__ = ['parse', 'Combiner', 'Journal', 'DiskUpdater', 'TransportReplay']
+__all__ = ['parse', 'Combiner', 'Journal', 'DiskUpdater', 'TransportReplay',
+    'FilterCombiner', 'ProcessFilter',
+    ]
 
 import errno
 import os
@@ -410,6 +414,38 @@ class FilterCombiner(object):
             if next_result is False:
                 result = next_result
         return result
+
+
+class ProcessFilter(object):
+    """A filter that uses an external process to perform filtering.
+
+    The process is communicated with via a line based protocol. For each path
+    to be filtered, the path + \n are written to the process, and a response
+    read back in. The response should be one of True\n, False\n or None\n.
+
+    :ivar proc: The process being used to do the filtering. This must be a 
+        subprocess.Popen or similar object; in particular its stdin must
+        support write(), and its stdout must support readline(). The process
+        is not started, not closed by ProcessFilter - the caller should take
+        care of that.
+    """
+
+    def __init__(self, proc):
+        """Create a ProcessFilter using proc to do the filtering.
+
+        :param proc: A subprocess.Popen or similar object with stdin and stdout
+            file like objects that can have write() and readline() called on them.
+        """
+        self.proc = proc
+        self._results = {'True\n': True, 'False\n': False, 'None\n': None}
+
+    def __call__(self, path):
+        """Filter path. See FilterCombiner's docstring for details.
+        
+        :param path: The path to filter.
+        """
+        self.proc.stdin.write("%s\n" % path)
+        return self._results[self.proc.stdout.readline()]
 
 
 class Journal(object):

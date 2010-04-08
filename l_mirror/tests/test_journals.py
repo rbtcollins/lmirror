@@ -20,6 +20,7 @@
 """Tests for the journals module."""
 
 from doctest import ELLIPSIS
+from StringIO import StringIO
 import time
 
 from bzrlib.transport import get_transport
@@ -28,7 +29,7 @@ from bzrlib.transport.memory import MemoryServer
 from testtools.matchers import DocTestMatches
 
 from l_mirror import journals
-from l_mirror.ui.model import UI
+from l_mirror.ui.model import UI, ProcessModel
 from l_mirror.tests import ResourcedTestCase
 
 
@@ -525,3 +526,17 @@ class TestFilterCombiner(ResourcedTestCase):
         def none(path): return None
         combiner = journals.FilterCombiner(none, false)
         self.assertEqual(False, combiner('foo'))
+
+
+class TestHelperFilter(ResourcedTestCase):
+
+    def test_protocol(self):
+        ui = UI()
+        proc = ProcessModel(ui)
+        proc.stdout = StringIO("True\nFalse\nNone\n")
+        proc.stdin = StringIO()
+        protocol = journals.ProcessFilter(proc)
+        self.assertEqual(True, protocol('foo'))
+        self.assertEqual(False, protocol('bar'))
+        self.assertEqual(None, protocol('baz'))
+        self.assertEqual('foo\nbar\nbaz\n', proc.stdin.getvalue())
