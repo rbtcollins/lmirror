@@ -218,6 +218,7 @@ updating = False
         basedir.put_bytes('dir1/def', 'abcdef')
         mirror.includes = ['included']
         mirror.excludes = ['dir2/', 'dir1']
+        mirror.filter_programs = []
         mirror.finish_change()
         t = basedir.clone('.lmirror/metadata/myname')
         self.assertThat(t.get_bytes('metadata.conf'), DocTestMatches("""[metadata]

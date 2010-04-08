@@ -287,6 +287,10 @@ Content rules
 ``.lmirror/sets/<name>/content.conf`` controls what contents are included in a
 mirror set. This file is a simple key-value list. Lines beginning with
 ``include`` select paths to mirror, and ``exclude`` select paths to exclude.
+Lines beginning with ``program`` specify a program to run to perform arbitrary
+logic to determine include or exclude status. See helper programs below for
+details about that.
+
 Excludes win over includes when a path is both included and excluded. Exclude
 and include rules are regexes, which are evaluated in search mode - you need to
 anchor them if you need an anchored search. Note that to exclude a directory
@@ -306,6 +310,31 @@ Regex hints
  * '(^|/)FOO': match FOO as the start of a basename at the root or below.
  * 'FOO($|/)': match FOO as the end of a basename at the root or below.
  * '\.FOO$': match paths ending in '.FOO'.
+
+Helper programs
+---------------
+
+Helper progreams are started up once and then have many paths run through them.
+Here is a simple python helper that filters paths containing the string 'm3u'::
+
+  #!/usr/bin/env python
+  import sys
+  while True:
+      line = sys.stdin.readline()
+      if not line:
+          break
+      if 'm3u' in line:
+          sys.stdout.write('False\n')
+      else:
+          sys.stdout.write('None\n')
+      sys.stdout.flush()
+
+A filter program recieves paths on stdin, one path at a time, with \n
+delimiting paths. It then replies on stdout for that one path, with one of::
+
+  True\n   # To force this path to be included.
+  False\n  # To force this path to be excluded.
+  None\n   # To not influence inclusion or exclusion for this path.
 
 Barriers
 ++++++++

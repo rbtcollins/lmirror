@@ -535,7 +535,7 @@ class TestHelperFilter(ResourcedTestCase):
         proc = ProcessModel(ui)
         proc.stdout = StringIO("True\nFalse\nNone\n")
         proc.stdin = StringIO()
-        protocol = journals.ProcessFilter(proc)
+        protocol = journals.ProcessFilter(proc, ui, "")
         self.assertEqual(True, protocol('foo'))
         self.assertEqual(False, protocol('bar'))
         self.assertEqual(None, protocol('baz'))

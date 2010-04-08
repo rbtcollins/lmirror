@@ -317,7 +317,7 @@ class DiskUpdater(object):
                 path = dirname and ('%s/%s' % (dirname, name)) or name
                 old_kind_details = cwd[name]
                 if type(old_kind_details) is dict:
-                    self._gather_deleted_dir(path, cwd[name])
+                    self._gather_deleted_dir(path, old_kind_details)
                     old_kind_details = ('dir',)
                 self.journal.add(path, 'del',
                     old_kind_details)
@@ -325,6 +325,13 @@ class DiskUpdater(object):
             for name in names:
                 path = dirname and ('%s/%s' % (dirname, name)) or name
                 if self._skip_path(path):
+                    if name in tree_names:
+                        # Newly excluded.
+                        old_kind_details = cwd[name]
+                        if type(old_kind_details) is dict:
+                            self._gather_deleted_dir(path, old_kind_details)
+                            old_kind_details = ('dir',)
+                        self.journal.add(path, 'del', old_kind_details)
                     continue
                 statinfo = self.transport.stat(path)
                 # Is it old enough to not check
@@ -378,14 +385,25 @@ class DiskUpdater(object):
             path.endswith('.lmirrortemp')):
             # metadata is transmitted by the act of fetching the
             # journal.
+            self.ui.output_log(1, __name__,
+                "Skipping %r because it is lmirror metadata/temp file" % path)
             return True
         filter_result = self.filter_callback(path)
         excluded = filter_result is False
         included = filter_result is True
-        if ((excluded or self.exclude_re.search(path)) and
-            not (included or self.include_re.search(path))):
-            return True
-        return False
+        if excluded or self.exclude_re.search(path):
+            if not (included or self.include_re.search(path)):
+                self.ui.output_log(1, __name__,
+                    "Skipping %r because it is excluded." % path)
+                return True
+            else:
+                self.ui.output_log(1, __name__,
+                    "Included %r because it is included." % path)
+                return False
+        else:
+            self.ui.output_log(1, __name__,
+                "Included %r because it is not excluded." % path)
+            return False
 
 
 class FilterCombiner(object):
@@ -428,16 +446,22 @@ class ProcessFilter(object):
         support write(), and its stdout must support readline(). The process
         is not started, not closed by ProcessFilter - the caller should take
         care of that.
+    :ivar ui: The UI for logging.
+    :ivar description: The description of the process for logging.
     """
 
-    def __init__(self, proc):
+    def __init__(self, proc, ui, description):
         """Create a ProcessFilter using proc to do the filtering.
 
         :param proc: A subprocess.Popen or similar object with stdin and stdout
             file like objects that can have write() and readline() called on them.
+        :param ui: UI to log actions to.
+        :param description: How to describe the helper.
         """
         self.proc = proc
         self._results = {'True\n': True, 'False\n': False, 'None\n': None}
+        self.ui = ui
+        self.description = description
 
     def __call__(self, path):
         """Filter path. See FilterCombiner's docstring for details.
@@ -445,7 +469,10 @@ class ProcessFilter(object):
         :param path: The path to filter.
         """
         self.proc.stdin.write("%s\n" % path)
-        return self._results[self.proc.stdout.readline()]
+        result = self._results[self.proc.stdout.readline()]
+        self.ui.output_log(1, __name__, "helper %s filtered %r with result %r"
+            % (self.description, path, result))
+        return result
 
 
 class Journal(object):

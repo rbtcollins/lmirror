@@ -11,6 +11,12 @@ Bug fixes
 * Content falling precisely on the end of a buffer would hang the client -
   fixed.
 
+Changes
++++++++
+
+* ``content.conf`` can now run an external program to control filtering. See
+  the manual for details.
+
 API Changes
 +++++++++++
 

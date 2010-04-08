@@ -30,6 +30,7 @@ __all__ = ['initialise', 'MirrorSet']
 
 import ConfigParser
 from StringIO import StringIO
+import subprocess
 import time
 
 from bzrlib import urlutils
@@ -121,6 +122,9 @@ class _MirrorSet(object):
         apply when scanning for changes.
     :ivar includes: () if not loaded from disk, or the include regexes to
         apply when scanning for changes.
+    :ivar filter_programs: () if not loaded from disk, or the list of programs
+        and arguments to run and use when scanning for changes in this
+        mirrorset.
     :ivar ui: The AbstractUI output is fed to.
     :ivar gpg_strategy: A bzrlib.gpg.GPGStrategy used for doing gpg signatures.
     :ivar gpgv_strategy: A l_mirror.gpg.GPGVStrategy for doing signature
@@ -140,6 +144,7 @@ class _MirrorSet(object):
         self.ui = ui
         self.excludes = ()
         self.includes = ()
+        self.filter_programs = ()
         self.gpg_strategy = gpg.SimpleGPGStrategy(None)
         try:
             self.gpgv_strategy = gpg.GPGVStrategy(
@@ -164,24 +169,31 @@ class _MirrorSet(object):
         basis = int(metadata.get('metadata', 'basis'))
         latest = int(metadata.get('metadata', 'latest'))
         current_state = self._combine_journals(basis, latest)
-        updater = journals.DiskUpdater(current_state,
-            self._content_root_dir(), self.name, last, self.ui,
-            includes = self.get_includes(), excludes=self.get_excludes())
-        journal = updater.finished()
-        if journal.paths:
-            next_id = latest + 1
-            journal_bytes = journal.as_bytes()
-            journal_dir = self._journaldir()
-            journal_dir.put_bytes(str(next_id), journal_bytes)
-            if self._is_signed():
-                signature = self.gpg_strategy.sign(journal_bytes)
-                journal_dir.put_bytes("%s.sig" % next_id, signature)
-            metadata.set('metadata', 'latest', str(next_id))
-            metadata.set('metadata', 'timestamp', str(now))
-        else:
-            self.ui.output_rest('No changes found in mirrorset.')
-        metadata.set('metadata', 'updating', 'False')
-        self._set_metadata(metadata)
+        filter_callback = self._get_filter_callback()
+        try:
+            updater = journals.DiskUpdater(current_state,
+                self._content_root_dir(), self.name, last, self.ui,
+                includes = self.get_includes(), excludes=self.get_excludes(),
+                filter_callback=filter_callback)
+            journal = updater.finished()
+            if journal.paths:
+                next_id = latest + 1
+                journal_bytes = journal.as_bytes()
+                journal_dir = self._journaldir()
+                journal_dir.put_bytes(str(next_id), journal_bytes)
+                if self._is_signed():
+                    signature = self.gpg_strategy.sign(journal_bytes)
+                    journal_dir.put_bytes("%s.sig" % next_id, signature)
+                metadata.set('metadata', 'latest', str(next_id))
+                metadata.set('metadata', 'timestamp', str(now))
+            else:
+                self.ui.output_rest('No changes found in mirrorset.')
+            metadata.set('metadata', 'updating', 'False')
+            self._set_metadata(metadata)
+        finally:
+            for filter in filter_callback.filters:
+                # Signal it should close and wait for it.
+                filter.proc.communicate('')
 
     def get_excludes(self):
         if self.excludes == ():
@@ -192,6 +204,16 @@ class _MirrorSet(object):
         if self.includes == ():
             self._parse_content_conf()
         return self.includes
+
+    def _get_filter_callback(self):
+        if self.filter_programs == ():
+            self._parse_content_conf()
+        filters = []
+        for program in self.filter_programs:
+            proc = self.ui.subprocess_Popen(program, stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE)
+            filters.append(journals.ProcessFilter(proc, self.ui, program))
+        return journals.FilterCombiner(*filters)
 
     def _contentdir(self):
         """Return a transport rooted at the content of this mirror set."""
@@ -333,6 +355,7 @@ class _MirrorSet(object):
         t = self._setdir()
         includes = []
         excludes = []
+        programs = []
         try:
             file_bytes = t.get_bytes('content.conf')
             for line in file_bytes.split('\n'):
@@ -342,10 +365,13 @@ class _MirrorSet(object):
                     includes.append(line[8:])
                 elif line.startswith('exclude '):
                     excludes.append(line[8:])
+                elif line.startswith('program '):
+                    programs.append(line[8:])
         except NoSuchFile:
             pass
         self.includes = includes
         self.excludes = excludes
+        self.filter_programs = programs
 
     def content_root_path(self):
         return self._get_settings().get('set', 'content_root')
