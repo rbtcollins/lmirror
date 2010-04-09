@@ -54,7 +54,7 @@ offmirror
 The master has to know the exact state of each child - cannot do
 anonymous mirroring.
 
-zysnc
+zsync
 +++++
 
 Designed with the intent of copy very smartly with single file
