@@ -173,6 +173,9 @@ class _RootApp(object):
             if self.server.set_watcher is None:
                 raise httpexceptions.HTTPServiceUnavailable("No inotify thread.")
             changes = self.server.set_watcher.get_changes(mirrorset)
+            if changes is None:
+                raise httpexceptions.HTTPNotFound(
+                    "Not ready to answer from inotify cache.")
             changes_bytes = json.dumps(changes)
             app = fileapp.DataApp(changes_bytes, content_type='application/json')
             app.cache_control(public=None, max_age=0)
@@ -300,7 +303,6 @@ class SetWatcher(object):
             path = mirror._contentdir().local_abspath('.')
         except NotLocalUrl:
             return
-        self.mirrorsets[mirror.name] = mirror
         self.paths.setdefault(path, []).append(mirror)
         # Add the directories recursively: to disowe can't depend on dir opens to
         # start traversing, because processes might be active below the top
@@ -337,6 +339,8 @@ class SetWatcher(object):
                     # records with time.time, but thats ok, newer times won't
                     # reduce accuracy.
                     self.note_changed(fullpath)
+        # Make this mirrorset usable in the getchanges API.
+        self.mirrorsets[mirror.name] = mirror
 
     def note_changed(self, path):
         self.changes_lock.acquire()
@@ -346,14 +350,21 @@ class SetWatcher(object):
             self.changes_lock.release()
 
     def get_changes(self, mirror):
-        """Get a list of all the paths changed that might be in mirror."""
+        """Get a list of all the paths changed that might be in mirror.
+        
+        :return: None if the mirror is not able to be answered from
+            self.changes, or a list of the paths that might be chagned in the
+            mirror.
+        """
         # TODO: filter for the caller to one mirror
+        if mirror.name not in self.mirrorsets:
+            return None
         self.changes_lock.acquire()
         try:
             try:
                 basepath = mirror._contentdir().local_abspath('.')
             except NotLocalUrl:
-                return []
+                return None
             return [path for path in self.changes if path.startswith(basepath)]
         finally:
             self.changes_lock.release()

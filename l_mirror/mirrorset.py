@@ -173,13 +173,17 @@ class _MirrorSet(object):
         if metadata.has_option('metadata', 'server'):
             server_url = metadata.get('metadata', 'server')
             server_transport = get_transport(server_url)
-            changes_bytes = server_transport.get_bytes('changes/%s' % self.name)
-            # TODO: May require URL decoding to match the transport interface.
-            changes = sorted(path.encode('utf8') for path in
-                json.loads(changes_bytes))
+            try:
+                changes_bytes = server_transport.get_bytes('changes/%s' % self.name)
+                # TODO: May require URL decoding to match the transport interface.
+                changes = sorted(path.encode('utf8') for path in
+                    json.loads(changes_bytes))
+            except NoSuchFile:
+                server_transport = None
+                changes = None
         else:
             server_transport = None
-            changes = Nnoe
+            changes = None
         current_state = self._combine_journals(basis, latest)
         filter_callback = self._get_filter_callback()
         try:
