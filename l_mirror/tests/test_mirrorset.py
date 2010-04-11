@@ -163,6 +163,17 @@ exclude another regex
         # sufficient.
         mirror.finish_change()
 
+    def test_set_server(self):
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        ui = self.get_test_ui()
+        mirror = mirrorset.initialise(basedir, 'myname', basedir, ui)
+        mirror.finish_change()
+        mirror.set_server('foo/bar')
+        self.assertEqual('foo/bar', mirror.get_server())
+        mirror.set_server(None)
+        self.assertEqual(None, mirror.get_server())
+
     def test_finish_change_not_updating_error(self):
         basedir = get_transport(self.setup_memory()).clone('path')
         basedir.create_prefix()

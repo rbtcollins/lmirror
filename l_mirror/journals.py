@@ -255,7 +255,8 @@ class DiskUpdater(object):
     """
 
     def __init__(self, tree, transport, name, last_timestamp, ui,
-        excludes=(), includes=(), filter_callback=lambda path:None):
+        excludes=(), includes=(), filter_callback=lambda path:None,
+        known_changes=None):
         """Create a DiskUpdater.
 
         :param tree: The tree to compare with.
@@ -273,6 +274,12 @@ class DiskUpdater(object):
             the include_re.
         :param filter_callback: A path filter. See the class docstring for
             details.
+        :param known_changes: Either None, or a list of abspaths for changes
+            known within the content root being scanned. If not None, then
+            the directory structure on disk is not walked; rather the known
+            changes are used to detect changes. As a special case, the children
+            of directories within known_changes that were not present in the
+            last mirror update are scanned on disk.
         """
         self.tree = tree
         self.transport = transport
@@ -286,17 +293,60 @@ class DiskUpdater(object):
         excludes = [r'(?:^|/)\.lmirror/'] + list(excludes)
         self.exclude_re = re.compile(self._make_re_str(excludes))
         self.filter_callback = filter_callback
+        self.known_changes = known_changes
 
     def _make_re_str(self, re_strs):
         re_strs = ['(?:%s)' % re_str for re_str in re_strs]
         return '|'.join(re_strs)
 
+    def _real_dir_contents(self, dirname):
+        """Get the contents of dirname from disk."""
+        return self.transport.list_dir(dirname)
+    
+    def _known_dir_contents(self, dirname):
+        """Get the contents of dirname from self.known_changes."""
+        cwd = self._known_changes_dirs
+        if dirname == '':
+            return cwd.keys()
+        elements = dirname.split('/')
+        for element in elements:
+            cwd = cwd[element][1]
+        return cwd.keys()
+
     def finished(self):
         """Return the journal obtained by scanning the disk."""
+        if self.known_changes is None:
+            return self._finished_scan(self._real_dir_contents)
+        else:
+            self._cache_known_changes()
+            return self._finished_scan(self._known_dir_contents,
+                missing_is_unchanged=True)
+
+    def _cache_known_changes(self):
+        """Structure known_changes into a dict for lookups."""
+        root_prefix = self.transport.local_abspath('.')
+        root = {}
+        for path in self.known_changes:
+            path = path[len(root_prefix) + 1:]
+            elements = path.split('/')
+            cwd = root
+            for pos, element in enumerate(elements):
+                dirname = '/'.join(elements[:pos + 1])
+                subdir = cwd.setdefault(element, (dirname, {}))
+                cwd = subdir[1]
+        self._known_changes_dirs = root
+
+    def _finished_scan(self, dir_contents, missing_is_unchanged=False):
+        """Perform finished() by scanning the disk.
+        
+        :param dir_contents: A callback to get the contents of a directory.
+        :param missing_is_unchanged: If True, a path not listed in a directory
+            is unchanged, rather than missing.
+        """
         pending = ['']
         while pending:
             dirname = pending.pop(-1)
-            names = self.transport.list_dir(dirname)
+            names = dir_contents(dirname)
             # NB: quadratic in lookup here due to presence in inner loop:
             # consider tuning.
             segments = dirname.split('/')
@@ -310,17 +360,19 @@ class DiskUpdater(object):
                     # totally new directory - added to journal by the directory
                     # above.
                     cwd = {}
+            # tree_names contains the last recorded set of names.
             tree_names = set(cwd)
             names = set(names)
-            for name in tree_names - names:
-                # deletes
-                path = dirname and ('%s/%s' % (dirname, name)) or name
-                old_kind_details = cwd[name]
-                if type(old_kind_details) is dict:
-                    self._gather_deleted_dir(path, old_kind_details)
-                    old_kind_details = ('dir',)
-                self.journal.add(path, 'del',
-                    old_kind_details)
+            if not missing_is_unchanged:
+                for name in tree_names - names:
+                    # deletes
+                    path = dirname and ('%s/%s' % (dirname, name)) or name
+                    old_kind_details = cwd[name]
+                    if type(old_kind_details) is dict:
+                        self._gather_deleted_dir(path, old_kind_details)
+                        old_kind_details = ('dir',)
+                    self.journal.add(path, 'del',
+                        old_kind_details)
             new_names = names - tree_names
             for name in names:
                 path = dirname and ('%s/%s' % (dirname, name)) or name
@@ -333,7 +385,19 @@ class DiskUpdater(object):
                             old_kind_details = ('dir',)
                         self.journal.add(path, 'del', old_kind_details)
                     continue
-                statinfo = self.transport.stat(path)
+                try:
+                    statinfo = self.transport.stat(path)
+                except errors.NoSuchFile:
+                    # This file doesn't actually exist: may be concurrent
+                    # delete, or a seen change from a changes list.
+                    if name in tree_names:
+                        # A delete.
+                        old_kind_details = cwd[name]
+                        if type(old_kind_details) is dict:
+                            self._gather_deleted_dir(path, old_kind_details)
+                            old_kind_details = ('dir',)
+                        self.journal.add(path, 'del', old_kind_details)
+                    continue
                 # Is it old enough to not check
                 mtime = getattr(statinfo, 'st_mtime', 0)
                 if self.last_timestamp - mtime > 3 and name not in new_names:

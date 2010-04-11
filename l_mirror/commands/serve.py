@@ -19,14 +19,19 @@
 
 """Serve one or more sets."""
 
+from optparse import Option
 import time
 
 from bzrlib import urlutils
+try:
+    import pyinotify
+except ImportError:
+    pyinotify = None
 
 from l_mirror.arguments import path, url
 from l_mirror.commands import Command
 from l_mirror import mirrorset
-from l_mirror.server import Server
+from l_mirror.server import Server, SetWatcher
 
 class serve(Command):
     """Serve one or more sets over HTTP.
@@ -38,6 +43,15 @@ class serve(Command):
     """
 
     args = [url.URLArgument('sets', min=1, max=None),
+        ]
+    options = [Option("--inotify", dest="inotify", help="Attempt to Monitor "
+        "the directory tree that each set contains via inotify. This will "
+        "perform a scan of the tree immediately, and after that accrue changes "
+        "made within that tree. This causes a lmirror.server file to be "
+        "written to the .lmirror/metadata/<set>/ directory otnaining the URL "
+        "of the server. " "This URL is then used by lmirror finish-change to "
+        "request a list of candidate changes to review.", action="store_true",
+        default=False)
         ]
 
     def run(self):
@@ -55,8 +69,26 @@ class serve(Command):
                     for name in names:
                         mirror = mirrorset.MirrorSet(base, name, self.ui)
                         server.add(mirror)
-                while True:
-                    time.sleep(10000000)
+                # Server is running, now we add inotify watches for existing
+                # content.
+                if self.ui.options.inotify:
+                    if pyinotify is None:
+                        self.ui.output_log(9, __name__, "inotify requested, "
+                            "but pyinotify could not be imported.")
+                    else:
+                        watcher = SetWatcher()
+                        server.set_watcher = watcher
+                        try:
+                            for mirror in server.mirrorsets.values():
+                                mirror.set_server(server.addresses[0])
+                                watcher.add(mirror)
+                            watcher.notifier.loop()
+                        finally:
+                            for mirror in server.mirrorsets.values():
+                                mirror.set_server(None)
+                if pyinotify is None or not self.ui.options.inotify:
+                    while True:
+                        time.sleep(10000000)
             except KeyboardInterrupt:
                 return 0
         finally:

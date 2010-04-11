@@ -17,6 +17,10 @@ Changes
 * ``content.conf`` can now run an external program to control filtering. See
   the manual for details.
 
+* ``lmirror serve`` can now perform inotify monitoring of sets, avoiding full
+  disk scans on each change creation, at the cost of a full scan at server
+  startup.
+
 API Changes
 +++++++++++
 

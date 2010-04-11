@@ -19,14 +19,21 @@
 
 """Server, the smart server for serving mirror sets."""
 
-__all__ = ['Server']
+__all__ = ['Server', 'SetWatcher']
 
-import threading
+import json
 import logging
+import os
+import threading
+from time import time
 
 from paste import fileapp, httpexceptions, httpserver
 from paste.httpexceptions import HTTPExceptionHandler
 from paste.httpheaders import *
+try:
+    import pyinotify
+except ImportError:
+    pyinotify = None
 
 from bzrlib import urlutils
 from bzrlib.errors import NoSuchFile, NotLocalUrl
@@ -48,6 +55,7 @@ class Server(object):
     :ivar mirrorsets: A dict name->MirrorSet containing the mirror sets being
         served.
     :ivar ui: An l_mirror.ui.AbstractUI to report via.
+    :ivar set_watcher: A SetWatcher if inotify is enabled, or None.
     """
 
     def __init__(self, ui):
@@ -58,6 +66,7 @@ class Server(object):
         logger = logging.getLogger('paste.httpserver.ThreadPool')
         # Set a decent level for paste
         logger.setLevel(logging.INFO)
+        self.set_watcher = None
 
     def start(self, port=8080):
         """Start the server.
@@ -97,6 +106,8 @@ class _RootApp(object):
     METADATA_PREFIX = '/metadata/'
     CONTENT_PREFIX = '/content/'
     STREAM_PREFIX = '/stream/'
+    CHANGES_PREFIX = '/changes/'
+    UPDATED_PREFIX = '/updated/'
 
 
     def __init__(self, server):
@@ -156,6 +167,26 @@ class _RootApp(object):
             generator = mirrorset.get_generator(from_journal, to_journal)
             return _DynamicApp(generator.as_bytes(),
                 content_type='application/x-lmirror')(environ, start_response)
+        # inotify infterface.
+        if path.startswith(self.CHANGES_PREFIX):
+            mirrorset, remainder = self._parse_url(path)
+            if self.server.set_watcher is None:
+                raise httpexceptions.HTTPServiceUnavailable("No inotify thread.")
+            changes = self.server.set_watcher.get_changes(mirrorset)
+            changes_bytes = json.dumps(changes)
+            app = fileapp.DataApp(changes_bytes, content_type='application/json')
+            app.cache_control(public=None, max_age=0)
+            return app(environ, start_response)
+        # updates to a mirror: when a mirror has had a new changeset added,
+        # etc. Causes inotify cached data to be dropped. This isn't a POST at
+        # the moment because the http client we're using doesn't make that as
+        # easy as it might.
+        if path.startswith(self.UPDATED_PREFIX):
+            mirrorset, remainder = self._parse_url(path)
+            if self.server.set_watcher is not None:
+                self.server.set_watcher.mirror_updated(mirrorset)
+            app = fileapp.DataApp('', content_type='text/plain')
+            return app(environ, start_response)
         # fallback to vanilla content.
         if path.startswith(self.CONTENT_PREFIX):
             mirrorset, remainder = self._parse_url(path)
@@ -229,3 +260,133 @@ class _TransportFileApp(fileapp.DataApp):
             return ['']
         self.content_file.seek(0)
         return fileapp._FileIter(self.content_file, size=self.content_length)
+
+
+class SetWatcher(object):
+    """Watch sets using inotify.
+    
+    This class watches all the files in one or more sets using inotify. This
+    requires an inotify watch on every directory that is in the set. Currently
+    it watches every directory under the content root; in future it might 
+    honour excludes.
+    
+    SetWatcher then records all the mutation events that occur within these
+    directories. Each set has a scan date for it; when the time that an event
+    was received is older than the oldest date for a set, the event is
+    discarded. As a consequence, failing to update a monitored set can prevent
+    memory being released.
+
+    Currently, events are just held in a dict, so pruning is an O(events) task.
+    """
+
+    def __init__(self):
+        """Create a SetWatcher.
+
+        This creates a WatchManager and other pyinotify objects itself.
+        """
+        self.wm = pyinotify.WatchManager()
+        self.handler = GatherDirectories(self)
+        self.notifier = pyinotify.Notifier(self.wm, default_proc_fun=self.handler)
+        self.mirrorsets = {}
+        self.paths = {}
+        self.changes = {} # path -> latest timestamp
+        # path cleanups need to be locked so that a cleanup doesn't delete something
+        # that is simultaneously changing.
+        self.changes_lock = threading.Lock()
+
+    def add(self, mirror):
+        """Add mirror to be observed for changes."""
+        try:
+            path = mirror._contentdir().local_abspath('.')
+        except NotLocalUrl:
+            return
+        self.mirrorsets[mirror.name] = mirror
+        self.paths.setdefault(path, []).append(mirror)
+        # Add the directories recursively: to disowe can't depend on dir opens to
+        # start traversing, because processes might be active below the top
+        # when we
+        # are adding the mirror.
+        # TODO: be more precise about events. Our goal is to be able to list
+        # directories that need examining for changes; new directories will be
+        # discovered by a change to the parent, so we don't need to recurse
+        # into them. So we need any write operations logged, is all.
+        # The reason we don't record all changed files is simply to tradeoff
+        # against the memory overhead of remembering everthing. This may be a
+        # mistake.
+        wanted_events = (
+            pyinotify.IN_MODIFY |
+            pyinotify.IN_ATTRIB |
+            pyinotify.IN_CLOSE_WRITE |
+            pyinotify.IN_MOVED_FROM |
+            pyinotify.IN_MOVED_TO |
+            pyinotify.IN_CREATE |
+            pyinotify.IN_DELETE |
+            pyinotify.IN_DELETE_SELF |
+            pyinotify.IN_MOVE_SELF |
+            pyinotify.IN_ONLYDIR | # New in 2.6.15; perhaps make it optional?
+            # Should be only watching dirs, belt and bracers.
+            pyinotify.IN_DONT_FOLLOW )
+        metadata = mirror._get_metadata()
+        last = float(metadata.get('metadata', 'timestamp'))
+        for dirname, dirs, files in os.walk(path):
+            self.wm.add_watch(dirname, wanted_events)
+            for child in dirs + files:
+                fullpath = dirname + '/' + child
+                mtime = os.stat(fullpath).st_mtime
+                if mtime >= last:
+                    # records with time.time, but thats ok, newer times won't
+                    # reduce accuracy.
+                    self.note_changed(fullpath)
+
+    def note_changed(self, path):
+        self.changes_lock.acquire()
+        try:
+            self.changes[path] = time()
+        finally:
+            self.changes_lock.release()
+
+    def get_changes(self, mirror):
+        """Get a list of all the paths changed that might be in mirror."""
+        # TODO: filter for the caller to one mirror
+        self.changes_lock.acquire()
+        try:
+            try:
+                basepath = mirror._contentdir().local_abspath('.')
+            except NotLocalUrl:
+                return []
+            return [path for path in self.changes if path.startswith(basepath)]
+        finally:
+            self.changes_lock.release()
+
+    def mirror_updated(self, mirror):
+        """Cleanup changes for mirror that are older than mirror."""
+        # TODO: make use of the fact different mirrors may have different paths
+        # rather than looking at all mirrors for all paths.
+        if not self.mirrorsets:
+            return
+        self.changes_lock.acquire()
+        try:
+            last = None
+            for mirror in self.mirrorsets.values():
+                metadata = mirror._get_metadata()
+                if last is None:
+                    last = float(metadata.get('metadata', 'timestamp'))
+                else:
+                    last = min(last, float(metadata.get('metadata', 'timestamp')))
+            for path, timestamp in list(self.changes.items()):
+                if timestamp < last:
+                    del self.changes[path]
+        finally:
+            self.changes_lock.release()
+
+
+if pyinotify is not None:
+    class GatherDirectories(pyinotify.ProcessEvent):
+        """Gather directories for a set watcher."""
+
+        def __init__(self, set_watcher):
+            """Create a GatherDirectories gathering to a SetWatcher."""
+            self.set_watcher = set_watcher
+
+        def process_default(self, event):
+            self.set_watcher.note_changed(event.pathname)

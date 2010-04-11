@@ -29,12 +29,14 @@ working with a MirrorSet.
 __all__ = ['initialise', 'MirrorSet']
 
 import ConfigParser
+import json
 from StringIO import StringIO
 import subprocess
 import time
 
 from bzrlib import urlutils
 from bzrlib.errors import NoSuchFile, NotLocalUrl
+from bzrlib.transport import get_transport
 
 from l_mirror import gpg, journals
 
@@ -168,13 +170,23 @@ class _MirrorSet(object):
         now = time.time()
         basis = int(metadata.get('metadata', 'basis'))
         latest = int(metadata.get('metadata', 'latest'))
+        if metadata.has_option('metadata', 'server'):
+            server_url = metadata.get('metadata', 'server')
+            server_transport = get_transport(server_url)
+            changes_bytes = server_transport.get_bytes('changes/%s' % self.name)
+            # TODO: May require URL decoding to match the transport interface.
+            changes = sorted(path.encode('utf8') for path in
+                json.loads(changes_bytes))
+        else:
+            server_transport = None
+            changes = Nnoe
         current_state = self._combine_journals(basis, latest)
         filter_callback = self._get_filter_callback()
         try:
             updater = journals.DiskUpdater(current_state,
                 self._content_root_dir(), self.name, last, self.ui,
                 includes = self.get_includes(), excludes=self.get_excludes(),
-                filter_callback=filter_callback)
+                filter_callback=filter_callback, known_changes=changes)
             journal = updater.finished()
             if journal.paths:
                 next_id = latest + 1
@@ -190,6 +202,8 @@ class _MirrorSet(object):
                 self.ui.output_rest('No changes found in mirrorset.')
             metadata.set('metadata', 'updating', 'False')
             self._set_metadata(metadata)
+            if server_transport is not None:
+                server_transport.get_bytes('updated/%s' % self.name)
         finally:
             for filter in filter_callback.filters:
                 # Signal it should close and wait for it.
@@ -214,6 +228,13 @@ class _MirrorSet(object):
                 stdout=subprocess.PIPE)
             filters.append(journals.ProcessFilter(proc, self.ui, program))
         return journals.FilterCombiner(*filters)
+
+    def get_server(self):
+        """Get the current server for this node from metadata.conf."""
+        metadata = self._get_metadata()
+        if not metadata.has_option('metadata', 'server'):
+            return None
+        return metadata.get('metadata', 'server')
 
     def _contentdir(self):
         """Return a transport rooted at the content of this mirror set."""
@@ -350,6 +371,18 @@ class _MirrorSet(object):
 
     def _setdir(self):
         return self.base.clone('.lmirror/sets/%s' % self.name)
+
+    def set_server(self, server):
+        """Set a current server in metadata.conf.
+
+        :param server: The server URL to remember.
+        """
+        metadata = self._get_metadata()
+        if server is None:
+            metadata.remove_option('metadata', 'server')
+        else:
+            metadata.set('metadata', 'server', server)
+        self._set_metadata(metadata)
 
     def _parse_content_conf(self):
         t = self._setdir()
