@@ -8,6 +8,13 @@ all: check
 check: doc .testrepository
 	testr run
 
+clean:
+	-find -name '*.html' -exec rm -f {} \;
+	-find -name '*.pyo' -exec rm -f {} \;
+	-rm -rf .testrepository
+	-rm -rf build
+	-rm -rf dist
+
 doc:: $(patsubst %.txt,%.html, $(wildcard doc/*.txt))
 
 doc:: INSTALL.html README.html
