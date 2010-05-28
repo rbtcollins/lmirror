@@ -21,6 +21,8 @@ Changes
   disk scans on each change creation, at the cost of a full scan at server
   startup.
 
+* There is now an ``install`` target in the Makefile.
+
 API Changes
 +++++++++++
 

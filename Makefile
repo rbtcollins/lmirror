@@ -19,3 +19,6 @@ check-xml: doc test.xml
 
 test.xml:
 	python -m subunit.run l_mirror.tests.test_suite | subunit2junitxml -o test.xml -f | subunit2pyunit
+
+install: check
+	python ./setup.py install --prefix=$(DESTDIR)/usr
