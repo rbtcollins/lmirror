@@ -441,7 +441,7 @@ class DiskUpdater(object):
         pending = [(path, dirdict)]
         while pending:
             dirname, cwd = pending.pop(-1)
-            for name, old_kind_details in cwd:
+            for name, old_kind_details in cwd.iteritems():
                 path = dirname and ('%s/%s' % (dirname, name)) or name
                 if type(old_kind_details) is dict:
                     pending.append((path, old_kind_details))
