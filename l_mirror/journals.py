@@ -370,9 +370,8 @@ class DiskUpdater(object):
                     old_kind_details = cwd[name]
                     if type(old_kind_details) is dict:
                         self._gather_deleted_dir(path, old_kind_details)
-                        old_kind_details = ('dir',)
-                    self.journal.add(path, 'del',
-                        old_kind_details)
+                        old_kind_details = DirContent()
+                    self.journal.add(path, 'del', old_kind_details)
             new_names = names - tree_names
             for name in names:
                 path = dirname and ('%s/%s' % (dirname, name)) or name
@@ -382,7 +381,7 @@ class DiskUpdater(object):
                         old_kind_details = cwd[name]
                         if type(old_kind_details) is dict:
                             self._gather_deleted_dir(path, old_kind_details)
-                            old_kind_details = ('dir',)
+                            old_kind_details = DirContent()
                         self.journal.add(path, 'del', old_kind_details)
                     continue
                 try:
@@ -395,7 +394,7 @@ class DiskUpdater(object):
                         old_kind_details = cwd[name]
                         if type(old_kind_details) is dict:
                             self._gather_deleted_dir(path, old_kind_details)
-                            old_kind_details = ('dir',)
+                            old_kind_details = DirContent()
                         self.journal.add(path, 'del', old_kind_details)
                     continue
                 mtime = getattr(statinfo, 'st_mtime', 0)
@@ -445,7 +444,7 @@ class DiskUpdater(object):
                 path = dirname and ('%s/%s' % (dirname, name)) or name
                 if type(old_kind_details) is dict:
                     pending.append((path, old_kind_details))
-                    old_kind_details = ('dir',)
+                    old_kind_details = DirContent()
                 self.journal.add(path, 'del', old_kind_details)
 
     def _skip_path(self, path):
