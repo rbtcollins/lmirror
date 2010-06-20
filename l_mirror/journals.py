@@ -398,11 +398,16 @@ class DiskUpdater(object):
                             old_kind_details = ('dir',)
                         self.journal.add(path, 'del', old_kind_details)
                     continue
-                # Is it old enough to not check
                 mtime = getattr(statinfo, 'st_mtime', 0)
-                if self.last_timestamp - mtime > 3 and name not in new_names:
-                    continue
                 kind = osutils.file_kind_from_stat_mode(statinfo.st_mode)
+                if (kind != 'directory' and self.last_timestamp - mtime > 3
+                    and name not in new_names):
+                    # We have to look inside directories always; things that
+                    # are older than 3 seconds we can trust even FAT to not
+                    # be lying about the last-modification (it has 2 second
+                    # granularity) and finally its not new (new things have
+                    # to be scanned always).
+                    continue
                 if kind == 'file':
                     f = self.transport.get(path)
                     try:

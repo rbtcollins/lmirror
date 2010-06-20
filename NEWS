@@ -11,6 +11,9 @@ Bug fixes
 * Content falling precisely on the end of a buffer would hang the client -
   fixed.
 
+* Changes in directories that haven't been modified are now picked up again.
+  (Robert Collins, lp:593610)
+
 Changes
 +++++++
 
