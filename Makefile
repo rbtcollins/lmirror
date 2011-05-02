@@ -6,7 +6,7 @@ all: check
 	testr init
 
 check: doc .testrepository
-	testr run
+	testr run --parallel
 
 clean:
 	-find -name '*.html' -exec rm -f {} \;
