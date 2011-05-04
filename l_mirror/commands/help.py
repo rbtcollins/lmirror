@@ -30,7 +30,7 @@ class help(Command):
     def run(self):
         if not self.ui.arguments['command_name']:
             help = """lmirror -- large scale mirroring 
-https://launchpad.net/l_mirror/
+https://launchpad.net/lmirror/
 
 lmirror commands -- list commands
 lmirror help [command] -- help system
