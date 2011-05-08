@@ -23,6 +23,7 @@ __all__ = ['UI', 'run_argv']
 
 import logging
 from optparse import OptionParser
+from operator import attrgetter
 import os
 import sys
 
@@ -58,6 +59,7 @@ class UI(ui.AbstractUI):
         self._c_log.setLevel(5)
         if self._f_log is not None:
             self._f_log.setLevel(3) # log more than the UI, but not everything.
+        self._min_log_level = 0
 
     def _iter_streams(self, stream_type):
         yield self._stdin
@@ -67,6 +69,8 @@ class UI(ui.AbstractUI):
         logging.getLogger().log(3, "Error", exc_info=1)
 
     def output_log(self, level, section, line):
+        if level < self._min_log_level:
+            return
         logger = logging.getLogger(section)
         logger.log(level, line)
 
@@ -145,6 +149,12 @@ class UI(ui.AbstractUI):
         self.options = options
         if self.options.verbosity:
             self._c_log.setLevel(self._c_log.level - self.options.verbosity)
+        # Avoid python logging being sucky-slow - fast path the won't-log
+        # case.
+        logs = [self._c_log]
+        if self._f_log is not None:
+            logs.append(self._f_log)
+        self._min_log_level = min(map(attrgetter('level'), logs))
         orig_args = list(args)
         parsed_args = {}
         failed = False
