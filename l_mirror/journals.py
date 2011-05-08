@@ -1038,7 +1038,7 @@ class TransportReplay(object):
         """
         try:
             os.symlink(content[1], realpath)
-        except OSerror, e:
+        except OSError, e:
             if e.errno == errno.EEXIST:
                 st = os.lstat(realpath)
                 if osutils.file_kind_from_stat_mode(st.st_mode) != 'symlink':
