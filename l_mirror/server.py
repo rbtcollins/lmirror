@@ -334,7 +334,7 @@ class SetWatcher(object):
             self.wm.add_watch(dirname, wanted_events)
             for child in dirs + files:
                 fullpath = dirname + '/' + child
-                mtime = os.stat(fullpath).st_mtime
+                mtime = os.lstat(fullpath).st_mtime
                 if mtime >= last:
                     # records with time.time, but thats ok, newer times won't
                     # reduce accuracy.
