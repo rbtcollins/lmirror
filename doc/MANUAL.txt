@@ -243,6 +243,12 @@ shows. Either way, you should later run
 
 when you are ready to give receivers content to mirror.
 
+You can run 
+
+ $ lmirror finish-change --dry-run [PATH/]NAME
+
+To see what will be added to the mirror.
+
 Because receivers may be reading from the content as it is changed, LMirror has
 a flag which can be set in the metadata indicating that the mirror set is
 getting changed - when this is set, receivers will pause their transmission and

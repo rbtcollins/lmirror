@@ -194,6 +194,26 @@ exclude another regex
         self.assertEqual(('rest', 'No changes found in mirrorset.'),
             ui.outputs[-1])
 
+    def test_finish_change_no_change_recorded(self):
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        ui = self.get_test_ui()
+        mirror = mirrorset.initialise(basedir, 'myname', basedir, ui)
+        basedir.create_prefix()
+        basedir.mkdir('dir1')
+        basedir.mkdir('dir2')
+        basedir.put_bytes('abc', '1234567890\n')
+        basedir.put_bytes('dir1/def', 'abcdef')
+        mirror.finish_change(dryrun=True)
+        t = basedir.clone('.lmirror/metadata/myname')
+        self.assertThat(t.get_bytes('metadata.conf'),
+            DocTestMatches("""[metadata]
+basis = 0
+latest = 0
+timestamp = ...
+updating = True
+""", ELLIPSIS))
+
     def test_finish_change_scans_content(self):
         basedir = get_transport(self.setup_memory()).clone('path')
         basedir.create_prefix()

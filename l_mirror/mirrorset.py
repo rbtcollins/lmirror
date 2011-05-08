@@ -155,10 +155,13 @@ class _MirrorSet(object):
             # won't be able to do gpgv calls.
             self.gpgv_strategy = None
 
-    def finish_change(self):
+    def finish_change(self, dryrun=False):
         """Scan the mirror set for changes and write a new journal entry.
 
         This will set updating=False and update the timestamp in the metadata.
+
+        :param dryrun: If True perform the content scan (and log/report it as
+            appropriate) but do not change the metadata or write a new journal.
         """
         metadata = self._get_metadata()
         if metadata.get('metadata', 'updating') != 'True':
@@ -192,7 +195,7 @@ class _MirrorSet(object):
                 includes = self.get_includes(), excludes=self.get_excludes(),
                 filter_callback=filter_callback, known_changes=changes)
             journal = updater.finished()
-            if journal.paths:
+            if not dryrun and journal.paths:
                 next_id = latest + 1
                 journal_bytes = journal.as_bytes()
                 journal_dir = self._journaldir()
@@ -205,9 +208,10 @@ class _MirrorSet(object):
             else:
                 self.ui.output_rest('No changes found in mirrorset.')
             metadata.set('metadata', 'updating', 'False')
-            self._set_metadata(metadata)
-            if server_transport is not None:
-                server_transport.get_bytes('updated/%s' % self.name)
+            if not dryrun:
+                self._set_metadata(metadata)
+                if server_transport is not None:
+                    server_transport.get_bytes('updated/%s' % self.name)
         finally:
             for filter in filter_callback.filters:
                 # Signal it should close and wait for it.

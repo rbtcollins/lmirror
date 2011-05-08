@@ -20,6 +20,10 @@ Changes
 * ``content.conf`` can now run an external program to control filtering. See
   the manual for details.
 
+* ``finish-change`` now supports a --dry-run (or -n) option which will scan but
+  not write the changes to disk. This is useful for determining what will be
+  recorded.
+
 * ``lmirror serve`` can now perform inotify monitoring of sets, avoiding full
   disk scans on each change creation, at the cost of a full scan at server
   startup.

@@ -19,6 +19,8 @@
 
 """Finish up an in progress change to a mirror set."""
 
+from optparse import Option
+
 from bzrlib import urlutils
 
 from l_mirror.arguments import path
@@ -32,11 +34,16 @@ class finish_change(Command):
     """
 
     args = [path.PathArgument('mirror_set', min=1, max=1)]
+    options = [Option("--dry-run", "-n", dest="dryrun",
+        help="Do not record changes. Useful for seeing if all the changes"
+        " expected will be picked up / looking for unexpected changes.",
+        action="store_true", default=False)
+        ]
 
     def run(self):
         transport = self.ui.arguments['mirror_set'][0]
         base = transport.clone('..')
         name = base.relpath(transport.base)
         mirror = mirrorset.MirrorSet(base, name, self.ui)
-        mirror.finish_change()
+        mirror.finish_change(dryrun=self.ui.options.dryrun)
         return 0

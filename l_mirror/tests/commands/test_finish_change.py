@@ -34,11 +34,33 @@ from l_mirror.tests.matchers import MatchesException
 
 class TestCommandFinishChange(ResourcedTestCase):
 
-    def get_test_ui_and_cmd(self, args):
-        ui = UI(args=args)
+    def get_test_ui_and_cmd(self, args, options=()):
+        ui = UI(args=args, options=options)
         cmd = finish_change.finish_change(ui)
         ui.set_command(cmd)
         return ui, cmd
+
+    def test_dry_run_leaves_unfinished(self):
+        base = self.setup_memory()
+        root = base + 'path/myname'
+        t = get_transport(base)
+        t = t.clone('path')
+        contentdir = t
+        contentdir.create_prefix()
+        contentdir.mkdir('dir1')
+        contentdir.mkdir('dir2')
+        contentdir.put_bytes('abc', '1234567890\n')
+        contentdir.put_bytes('dir1/def', 'abcdef')
+        ui, cmd = self.get_test_ui_and_cmd((root,), [('dryrun', True)])
+        mirror = mirrorset.initialise(t, 'myname', t, ui)
+        self.assertEqual(0, cmd.execute())
+        t = t.clone('.lmirror/metadata/myname')
+        self.assertThat(t.get_bytes('metadata.conf'), DocTestMatches("""[metadata]
+basis = 0
+latest = 0
+timestamp = ...
+updating = True
+""", ELLIPSIS))
 
     def test_not_updating_errors(self):
         base = self.setup_memory()
