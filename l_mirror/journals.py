@@ -1037,14 +1037,14 @@ class TransportReplay(object):
         An error is raised if something is in the way.
         """
         try:
-            os.symlink(content[1], realpath)
+            os.symlink(target, realpath)
         except OSError, e:
             if e.errno == errno.EEXIST:
                 st = os.lstat(realpath)
                 if osutils.file_kind_from_stat_mode(st.st_mode) != 'symlink':
                     raise ValueError('unexpected non-symlink at %r' % realpath)
                 os.unlink(realpath)
-                os.symlink(content[1], realpath)
+                os.symlink(target, realpath)
             else:
                 raise
 
