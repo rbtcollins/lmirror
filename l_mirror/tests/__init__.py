@@ -32,14 +32,17 @@ from testtools import TestCase
 
 from l_mirror.tests import memory_transport_stat
 
-class ResourcedTestCase(TestCase, testresources.ResourcedTestCase):
+class ResourcedTestCase(TestCase):
     """Make all l_mirror tests have resource support."""
+
+    resources = []
 
     def setUp(self):
         TestCase.setUp(self)
-        testresources.ResourcedTestCase.setUpResources(self)
-        self.addCleanup(testresources.ResourcedTestCase.tearDownResources,
-            self)
+        result = testresources._get_result()
+        testresources.setUpResources(self, self.resources, result)
+        self.addCleanup(
+            testresources.tearDownResources, self, self.resources, result)
 
     def setup_memory(self):
         """Create a memory url server and return its url."""
