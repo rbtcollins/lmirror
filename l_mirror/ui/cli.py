@@ -21,6 +21,7 @@
 
 __all__ = ['UI', 'run_argv']
 
+import io
 import logging
 from optparse import OptionParser
 from operator import attrgetter
@@ -65,6 +66,22 @@ class UI(ui.AbstractUI):
         yield self._stdin
 
     def output_error(self, error_tuple):
+        if 'LMIRROR_PDB' in os.environ:
+            import traceback
+            self._stderr.write(u''.join(traceback.format_tb(error_tuple[2])))
+            self._stderr.write(u'\n')
+            # This is terrible: it is because on Python2.x pdb writes bytes to
+            # its pipes, and the test suite uses io.StringIO that refuse bytes.
+            import pdb;
+            if sys.version_info[0]==2:
+                if isinstance(self._stdout, io.StringIO):
+                    write = self._stdout.write
+                    def _write(text):
+                        return write(text.decode('utf8'))
+                    self._stdout.write = _write
+            p = pdb.Pdb(stdin=self._stdin, stdout=self._stdout)
+            p.reset()
+            p.interaction(None, error_tuple[2])
         self._stderr.write(str(error_tuple[1]) + '\n')
         logging.getLogger().log(3, "Error", exc_info=1)
 
