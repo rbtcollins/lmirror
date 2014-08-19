@@ -1034,10 +1034,8 @@ class TransportReplay(object):
 
         :param tempname: The name of a temporary file with the needed content.
         """
-        if self.check_file(path, content):
-            # Note that this implies we copied a file we didn't - during
-            # a complete resync - sure, but still not optimal bw use.
-            self.contentdir.delete(tempname)
+        if self.contentdir.has(path):
+            self.contentdir.delete(path)
         self.contentdir.rename(tempname, path)
 
     def ensure_link(self, realpath, target):
@@ -1080,7 +1078,9 @@ class TransportReplay(object):
             if self.check_file(path, content):
                 action.ignore_file()
                 return lambda:None
-        except ValueError:
+        except (ValueError, IOError):
+            # If we can't read the file for some reason, we obviously need to
+            # write it :).
             pass
         a_file = action.get_file()
         source = _ShaFile(a_file)

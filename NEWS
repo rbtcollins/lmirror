@@ -14,6 +14,9 @@ Bug fixes
 * Changes in directories that haven't been modified are now picked up again.
   (Robert Collins, lp:593610)
 
+* I/O errors while checking a local file will now cause the file to be replaced.
+  (Robert Collins)
+
 * Setting LMIRROR_PDB in the environment will enable just-in-time pdb to debug
   problems. (Robert Collins)
 
