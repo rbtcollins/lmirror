@@ -748,13 +748,18 @@ class TransportAction(Action):
     :ivar sourcedir: Transport to read file content from.
     """
 
-    def __init__(self, action_type, path, content, sourcedir):
+    def __init__(self, action_type, path, content, sourcedir, ui):
         Action.__init__(self, action_type, path, content)
         self.sourcedir = sourcedir
+        self.ui = ui
 
     def get_file(self):
         """Get the content for a new file as a file-like object."""
         return self.sourcedir.get(self.path)
+
+    def ignore_file(self):
+        self.ui.output_log(
+            4, __name__, 'Ignoring %s %r' % (self.content.kind, self.path))
 
 
 class StreamedAction(Action):
@@ -776,6 +781,8 @@ class StreamedAction(Action):
         return BufferedFile(self.generator, content.length, self.ui)
 
     def ignore_file(self):
+        self.ui.output_log(
+            4, __name__, 'Ignoring %s %r' % (self.content.kind, self.path))
         self.get_file().close()
 
 
@@ -830,7 +837,8 @@ class ReplayGenerator(object):
         groups = self.journal.as_groups()
         for group in groups:
             for action, path, content in group:
-                yield TransportAction(action, path, content, self.sourcedir)
+                yield TransportAction(
+                    action, path, content, self.sourcedir, self.ui)
 
     def as_bytes(self):
         """Return a generator of bytestrings for this generator's content."""
@@ -1013,6 +1021,7 @@ class TransportReplay(object):
                 raise ValueError('unexpected non-file at %r' % path)
             f = self.contentdir.get(path)
             try:
+                self.ui.output_log(4, __name__, 'Hashing %s %r' % (content.kind, path))
                 size, sha1 = osutils.size_sha_file(f)
             finally:
                 f.close()
@@ -1058,7 +1067,7 @@ class TransportReplay(object):
             IO has been done before returning.
         """
         tempname = '%s.lmirrortemp' % path
-        self.ui.output_log(4, __name__, 'Writing %s %r' % (content.kind, path))
+        self.ui.output_log(4, __name__, 'Checking %s %r' % (content.kind, path))
         if content.kind == 'dir':
             return lambda: self.ensure_dir(path)
         elif content.kind == 'symlink':
