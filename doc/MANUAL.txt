@@ -75,7 +75,9 @@ Definitions
 
 * Root node: The one (there must be one, and only one) node in a LMirror
   network that is not configured to receive from any other nodes. This node
-  is the 'master' that introduces all changes to the network.
+  is the 'master' that introduces all changes to the network. Any node in the
+  network that has at least all the changes present on any other node can be
+  take over the root role at any point: there is no unique data on the root.
 
 * Transmission: The act of copying new changes from a sender to a receiver,
   including updating of the metadata on the receiver to record that the
@@ -189,7 +191,7 @@ Then that would be enough to allow receivers to run::
 
 The exact details of splitting the metadata and config out into different trees
 has not been decided yet, but the goal is to permit using CD-Roms and other
-meta as mirrorable sets even if they have not been published as that
+media as mirrorable sets even if they have not been published as that
 themselves.
 
 Smart senders
