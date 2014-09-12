@@ -1,0 +1,11 @@
+*.html
+build
+dist
+.testrepository
+test.xml
+.*.swp
+*~
+AUTHORS
+ChangeLog
+*.pyc
+lmirror.egg-info

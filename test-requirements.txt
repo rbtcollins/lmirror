@@ -1,0 +1,4 @@
+testrepository
+python-testscenarios
+python-testresources
+

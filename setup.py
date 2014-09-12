@@ -17,41 +17,8 @@
 # In the LMirror source tree the file COPYING.txt contains the GNU General Public
 # License version 3.
 # 
+import setuptools
 
-from distutils.core import setup
-import os
-
-import l_mirror
-
-version = '.'.join(str(component) for component in l_mirror.__version__[0:3])
-phase = l_mirror.__version__[3]
-if phase != 'final':
-    import bzrlib.workingtree
-    t = bzrlib.workingtree.WorkingTree.open_containing(__file__)[0]
-    if phase == 'alpha':
-        # No idea what the next version will be
-        version = 'next-%s' % t.branch.revno()
-    else:
-        # Preserve the version number but give it a revno prefix
-        version = version + '~%s' % t.branch.revno()
-
-description = file(os.path.join(os.path.dirname(__file__), 'README.txt'), 'rb').read()
-
-setup(name='lmirror',
-      author='Robert Collins',
-      author_email='robertc@robertcollins.net',
-      url='https://launchpad.net/lmirror',
-      description='Large scale mirror protocol.',
-      long_description=description,
-      scripts=['lmirror'],
-      version=version,
-      packages=[
-        'l_mirror',
-        'l_mirror.arguments',
-        'l_mirror.commands',
-        'l_mirror.ui',
-        'l_mirror.tests',
-        'l_mirror.tests.arguments',
-        'l_mirror.tests.commands',
-        'l_mirror.tests.ui',
-        ])
+setuptools.setup(
+    setup_requires=['pbr'],
+    pbr=True)

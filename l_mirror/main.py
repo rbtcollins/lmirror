@@ -27,5 +27,10 @@ import sys
 
 from l_mirror.ui.cli import run_argv
 
-if __name__ == "__main__":
+
+def main(*args, **kwargs):
     sys.exit(run_argv(sys.argv, sys.stdin, sys.stdout, sys.stderr))
+
+
+if __name__ == "__main__":
+    main()
