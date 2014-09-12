@@ -42,5 +42,5 @@ All commits to trunk and other release branches should always pass ``make check`
 VCS
 ===
 
-``bzr`` is the VCS for lmirror; trunk is branchable by doing
-``bzr branch lp:lmirror``.
+``git`` is the VCS for lmirror; trunk is at
+https://github.com/rbtcollins/lmirror.

@@ -19,7 +19,7 @@ Runtime dependencies
 
  * Python (probably 2.4 or above, but no particular effort has been made for
    compatibility).
- * bzrlib (used for smoe gpg support and the VFS).
+ * bzrlib (used for some gpg support and the VFS).
  * gpgv for signature verifications.
  * gpg to do signing of journals.
  * python-paste (for 'lmirror serve').
