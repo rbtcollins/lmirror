@@ -30,7 +30,9 @@ The mirrorset module contains logic for working with a mirrorset - a thing to
 The tests package contains tests and test specific support code.
 """
 
-__all__ = ['__version__']
+__all__ = ['version', '__version__']
+
+import pbr.version
 
 # same format as sys.version_info: "A tuple containing the five components of
 # the version number: major, minor, micro, releaselevel, and serial. All
@@ -43,4 +45,9 @@ __all__ = ['__version__']
 # established at this point, and setup.py will use a version of next-$(revno).
 # If the releaselevel is 'final', then the tarball will be major.minor.micro.
 # Otherwise it is major.minor.micro~$(revno).
-__version__ = (0, 0, 3, 'alpha', 0)
+
+# Uncomment when pbr 0.11 is released.
+#_version = pbr.version.VersionInfo('lmirror').semantic_version()
+#__version__ = _version.version_tuple()
+#version = _version.release_string()
+__version__ = (0, 0, 4, 'alpha', 0)
