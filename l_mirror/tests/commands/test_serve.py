@@ -22,7 +22,7 @@
 from doctest import ELLIPSIS
 
 from bzrlib.transport import get_transport
-
+from fixtures import MonkeyPatch
 from testtools.matchers import DocTestMatches
 
 from l_mirror.commands import serve
@@ -37,8 +37,8 @@ class TestCommandServer(ResourcedTestCase):
 
     resources = [('logging', LoggingResourceManager())]
 
-    def get_test_ui_and_cmd(self, args):
-        ui = UI(args=args)
+    def get_test_ui_and_cmd(self, args, options=()):
+        ui = UI(args=args, options=options)
         cmd = serve.serve(ui)
         ui.set_command(cmd)
         return ui, cmd
@@ -46,3 +46,20 @@ class TestCommandServer(ResourcedTestCase):
     # Some tests that would be good to write:
     # - starts a server
     # - outputs the port
+
+    def test_set_port(self):
+        base = self.setup_memory()
+        root = base + 'path/myname'
+        root_t = get_transport(base)
+        contentdir = root_t.clone('path')
+        contentdir.create_prefix()
+        mirror = mirrorset.initialise(contentdir, 'myname', contentdir, UI())
+        mirror.finish_change()
+        ui, cmd = self.get_test_ui_and_cmd((root,), [('port', 1234)])
+        fake_calls = []
+        def fake_start(self, port=8080):
+            fake_calls.append(port)
+            raise Exception("All good")
+        self.useFixture(MonkeyPatch('l_mirror.server.Server.start', fake_start))
+        self.assertEqual(3, cmd.execute())
+        self.assertEqual([1234], fake_calls)

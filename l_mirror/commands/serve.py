@@ -44,19 +44,23 @@ class serve(Command):
 
     args = [url.URLArgument('sets', min=1, max=None),
         ]
-    options = [Option("--inotify", dest="inotify", help="Attempt to Monitor "
-        "the directory tree that each set contains via inotify. This will "
-        "perform a scan of the tree immediately, and after that accrue changes "
-        "made within that tree. This causes a lmirror.server file to be "
-        "written to the .lmirror/metadata/<set>/ directory otnaining the URL "
-        "of the server. " "This URL is then used by lmirror finish-change to "
-        "request a list of candidate changes to review.", action="store_true",
-        default=False)
+    options = [
+        Option("--inotify", dest="inotify", help="Attempt to Monitor the "
+            "directory tree that each set contains via inotify. This will "
+            "perform a scan of the tree immediately, and after that accrue "
+            "changes made within that tree. This causes a lmirror.server "
+            "file to be written to the .lmirror/metadata/<set>/ directory "
+            "obtaining the URL of the server. This URL is then used by "
+            "lmirror finish-change to request a list of candidate changes "
+            "to review.", action="store_true", default=False),
+        Option("--port", "-p", dest="port", help="Control what port the server "
+            "runs on. Use 0 to auto-allocate a port. Defaults to 8080.",
+            action="store_true", default=8080),
         ]
 
     def run(self):
         server = Server(self.ui)
-        server.start()
+        server.start(self.ui.options.port)
         try:
             try:
                 for transport in self.ui.arguments['sets']:
