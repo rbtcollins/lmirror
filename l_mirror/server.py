@@ -167,7 +167,7 @@ class _RootApp(object):
             generator = mirrorset.get_generator(from_journal, to_journal)
             return _DynamicApp(generator.as_bytes(),
                 content_type='application/x-lmirror')(environ, start_response)
-        # inotify infterface.
+        # inotify interface.
         if path.startswith(self.CHANGES_PREFIX):
             mirrorset, remainder = self._parse_url(path)
             if self.server.set_watcher is None:
