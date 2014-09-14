@@ -864,7 +864,12 @@ class FromFileGenerator(object):
         kind = tokens[pos]
         pos += 1
         if kind == 'file':
-            return FileContent(tokens[pos], int(tokens[pos+1]), float(tokens[pos+2])), pos + 3
+            mtime = tokens[pos+2]
+            if mtime == "None":
+                mtime = 0
+            else:
+                mtime = float(mtime)
+            return FileContent(tokens[pos], int(tokens[pos+1]), mtime), pos + 3
         elif kind == 'dir':
             return DirContent(), pos
         elif kind == 'symlink':
