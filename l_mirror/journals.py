@@ -400,7 +400,7 @@ class DiskUpdater(object):
                 mtime = getattr(statinfo, 'st_mtime', 0)
                 kind = osutils.file_kind_from_stat_mode(statinfo.st_mode)
                 if (kind != 'directory' and
-                    (self.last_timestamp - mtime > 3 and mtime != 0)
+                    (self.last_timestamp - mtime > 3 and mtime)
                     and name not in new_names):
                     # We have to look inside directories always; things that
                     # are older than 3 seconds we can trust even FAT to not
@@ -866,7 +866,7 @@ class FromFileGenerator(object):
         if kind == 'file':
             mtime = tokens[pos+2]
             if mtime == "None":
-                mtime = 0
+                mtime = None
             else:
                 mtime = float(mtime)
             return FileContent(tokens[pos], int(tokens[pos+1]), mtime), pos + 3
