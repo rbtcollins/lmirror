@@ -8,6 +8,16 @@ NEXT (in development)
 Bug fixes
 +++++++++
 
+* If a filesystem returns an mtime of 0 - which some VFS ones will, then
+  files are considered for changes rather than short circuiting. Fixes
+  some test code capabilities only. (Robert Collins)
+
+0.0.3
+=====
+
+Bug fixes
++++++++++
+
 * Content falling precisely on the end of a buffer would hang the client -
   fixed.
 

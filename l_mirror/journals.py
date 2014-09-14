@@ -399,7 +399,8 @@ class DiskUpdater(object):
                     continue
                 mtime = getattr(statinfo, 'st_mtime', 0)
                 kind = osutils.file_kind_from_stat_mode(statinfo.st_mode)
-                if (kind != 'directory' and self.last_timestamp - mtime > 3
+                if (kind != 'directory' and
+                    (self.last_timestamp - mtime > 3 and mtime != 0)
                     and name not in new_names):
                     # We have to look inside directories always; things that
                     # are older than 3 seconds we can trust even FAT to not
