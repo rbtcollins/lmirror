@@ -759,8 +759,12 @@ class TransportAction(Action):
         return self.sourcedir.get(self.path)
 
     def ignore_file(self):
+        if type(self.content) is tuple:
+            content = self.content[1]
+        else:
+            content = self.content
         self.ui.output_log(
-            4, __name__, 'Ignoring %s %r' % (self.content.kind, self.path))
+            4, __name__, 'Ignoring %s %r' % (content.kind, self.path))
 
 
 class StreamedAction(Action):
@@ -782,9 +786,14 @@ class StreamedAction(Action):
         return BufferedFile(self.generator, content.length, self.ui)
 
     def ignore_file(self):
+        if type(self.content) is tuple:
+            content = self.content[1]
+        else:
+            content = self.content
         self.ui.output_log(
-            4, __name__, 'Ignoring %s %r' % (self.content.kind, self.path))
-        self.get_file().close()
+            4, __name__, 'Ignoring %s %r' % (content.kind, self.path))
+        if self.type != 'del':
+            self.get_file().close()
 
 
 class BufferedFile(object):
@@ -859,8 +868,7 @@ class FromFileGenerator(object):
         self.buffered_bytes = []
         self.ui = ui
 
-    def parse_kind_data(self, tokens):
-        pos = 2
+    def parse_kind_data(self, tokens, pos):
         kind = tokens[pos]
         pos += 1
         if kind == 'file':
@@ -883,15 +891,17 @@ class FromFileGenerator(object):
             # TODO: make this more efficient: but wait till its shown to be a
             # key issue to address.
             some_bytes = self._next_bytes(4096)
+            if not some_bytes:
+                return
             tokens = some_bytes.split('\x00')
             path = tokens[0]
             action = tokens[1]
             kind = tokens[2]
             if action in ('new', 'del'):
-                kind_data, pos = self.parse_kind_data(tokens)
+                kind_data, pos = self.parse_kind_data(tokens, 2)
             elif action == 'replace':
-                kind_data1, pos = self.parse_kind_data(tokens)
-                kind_data2, pos = self.parse_kind_data(tokens)
+                kind_data1, pos = self.parse_kind_data(tokens, 2)
+                kind_data2, pos = self.parse_kind_data(tokens, pos)
                 kind_data = kind_data1, kind_data2
             else:
                 raise ValueError('unknown action %r' % action)
@@ -925,6 +935,34 @@ class FromFileGenerator(object):
         while content:
             yield content
             content = self._stream.read(65536)
+
+
+class CancellableDelete:
+    """Group a number of actions and allow them to all be cancelled at once."""
+
+    def __init__(self, content, contentdir, path, ui):
+        self.cancelled = False
+        self.content = content
+        self.contentdir = contentdir
+        self.path = path
+        self.ui = ui
+
+    def delete(self):
+        # TODO: we may want to warn or perhaps have a strict mode here.
+        # e.g. handle already deleted things. This should become clear
+        # when recovery mode is done.
+        if self.cancelled:
+            return
+        self.ui.output_log(4, __name__, 'Deleting %s %r' %
+            (self.content.kind, self.path))
+        try:
+            if self.content.kind != 'dir':
+                self.contentdir.delete(self.path)
+            else:
+                self.contentdir.rmdir(self.path)
+        except errors.NoSuchFile:
+            # Already gone, ignore it.
+            pass
 
 
 class TransportReplay(object):
@@ -978,27 +1016,21 @@ class TransportReplay(object):
                     if action == 'replace':
                         # TODO: (again, to do with replacing files with dirs:)
                         #       do not delay creating dirs needed for files
-                        #       below them.
-                        to_rename.append(self.put_with_check(path, content[1],
-                            action_obj))
-                        to_delete.append((path, content[0]))
+                        #       below them, or create the files in the temp
+                        #       dir.
+                        cancellable = CancellableDelete(
+                            content[0], self.contentdir, path, self.ui)
+                        to_rename.append(
+                            self.put_with_check(path, content[1], action_obj,
+                                cancellable))
+                        to_delete.append(cancellable)
                     if action == 'del':
-                        to_delete.append((path, content))
-                for path, content in to_delete:
+                        cancellable = CancellableDelete(
+                            content, self.contentdir, path, self.ui)
+                        to_delete.append(cancellable)
+                for cancellable in to_delete:
                     # Second pass on the group to handle deletes as late as possible
-                    # TODO: we may want to warn or perhaps have a strict mode here.
-                    # e.g. handle already deleted things. This should become clear
-                    # when recovery mode is done.
-                    self.ui.output_log(4, __name__, 'Deleting %s %r' %
-                        (content.kind, path))
-                    try:
-                        if content.kind != 'dir':
-                            self.contentdir.delete(path)
-                        else:
-                            self.contentdir.rmdir(path)
-                    except errors.NoSuchFile:
-                        # Already gone, ignore it.
-                        pass
+                    cancellable.delete()
             finally:
                 for doit in to_rename:
                     doit()
@@ -1061,12 +1093,14 @@ class TransportReplay(object):
             else:
                 raise
 
-    def put_with_check(self, path, content, action):
+    def put_with_check(self, path, content, action, cancellable=None):
         """Put a_file at path checking that as received it matches content.
 
         :param path: A relpath.
         :param content: A content description of a file.
         :param action: An action object which can supply file content.
+        :param cancellable: A Cancellable object to use when the content is
+            already present locally.
         :return: A callable that will execute the rename-into-place - all the
             IO has been done before returning.
         """
@@ -1083,6 +1117,8 @@ class TransportReplay(object):
         try:
             if self.check_file(path, content):
                 action.ignore_file()
+                if cancellable:
+                    cancellable.cancelled = True
                 return lambda:None
         except (ValueError, IOError):
             # If we can't read the file for some reason, we obviously need to

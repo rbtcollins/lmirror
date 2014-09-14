@@ -12,6 +12,14 @@ Bug fixes
   files are considered for changes rather than short circuiting. Fixes
   some test code capabilities only. (Robert Collins)
 
+* If a file converged on the same value as the recipient had with a 
+  replace action rather than a new action, we would error when streaming.
+  (Robert Collins)
+
+* If a file converged on the same value as the recipient had with a
+  replace action we would delete the file.
+  (Robert Collins)
+
 0.0.3
 =====
 

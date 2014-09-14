@@ -20,6 +20,7 @@
 """Tests for the journals module."""
 
 from doctest import ELLIPSIS
+from io import BytesIO
 from StringIO import StringIO
 import time
 
@@ -356,6 +357,89 @@ class TestTransportReplay(ResourcedTestCase):
             'abc.lmirrortemp', 'abc'), ('delete', 'bye')],
             basedir._activity)
 
+    def test_replace_identical_content_same_mtime(self):
+        basedir = get_transport('trace+' + self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        basedir.put_bytes('abc', 'def')
+        sourcedir = basedir.clone('../source')
+        sourcedir.create_prefix()
+        sourcedir.put_bytes('abc', 'def')
+        j1 = journals.Journal()
+        # TODO: we need to set mtime to something different - in a new test,
+        # but that needs VFS improvements, or real files, or mocks or smething.
+        j1.add('abc', 'replace', (
+            journals.FileContent('589c22335a381f122d129225f5c0ba3056ed5811', 3, None),
+            journals.FileContent('589c22335a381f122d129225f5c0ba3056ed5811', 3, None)))
+        del basedir._activity[:]
+        ui = UI()
+        generator = journals.ReplayGenerator(j1, sourcedir, ui)
+        replay = journals.TransportReplay(j1, generator, basedir, ui)
+        replay.replay()
+        self.assertEqual([
+            # hash - don't need to delete or to copy it (as link count == 1)
+            ('get', 'abc'),
+            ],
+            basedir._activity)
+
+
+class TestFromFileGenerator(ResourcedTestCase):
+
+    def test_new_replace_delete(self):
+        # Just check all types are handled
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        basedir.put_bytes('abc', 'def')
+        basedir.put_bytes('bye', 'by')
+        sourcedir = basedir.clone('../source')
+        sourcedir.create_prefix()
+        sourcedir.put_bytes('abc', '123412341234')
+        sourcedir.put_bytes('new', '12341234')
+        j1 = journals.Journal()
+        j1.add('abc', 'replace', (
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 3, None),
+            journals.FileContent('5a78babbb162531b3a16c55310a4e7228d68f2e9', 12, None)))
+        j1.add('bye', 'del', journals.FileContent('d', 2, None))
+        j1.add('new', 'new',
+            journals.FileContent('c129b324aee662b04eccf68babba85851346dff9', 8, None))
+        ui = UI()
+        stream = journals.ReplayGenerator(j1, sourcedir, ui)
+        reference_stream = []
+        for item in stream.stream():
+            reference_stream.append((item.type, item.path, item.content))
+        content = b''.join(stream.as_bytes())
+        source = BytesIO(content)
+        replay = journals.FromFileGenerator(source, ui)
+        file_stream = []
+        for item in replay.stream():
+            file_stream.append((item.type, item.path, item.content))
+            item.ignore_file()
+        self.assertEqual(reference_stream, file_stream)
+
+    def test_ignorable(self):
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        basedir.put_bytes('abc', 'def')
+        basedir.put_bytes('bye', 'by')
+        sourcedir = basedir.clone('../source')
+        sourcedir.create_prefix()
+        sourcedir.put_bytes('abc', '123412341234')
+        sourcedir.put_bytes('new', '12341234')
+        j1 = journals.Journal()
+        j1.add('abc', 'replace', (
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 3, None),
+            journals.FileContent('5a78babbb162531b3a16c55310a4e7228d68f2e9', 12, None)))
+        j1.add('bye', 'del', journals.FileContent('d', 2, None))
+        j1.add('new', 'new',
+            journals.FileContent('c129b324aee662b04eccf68babba85851346dff9', 8, None))
+        ui = UI()
+        stream = journals.ReplayGenerator(j1, sourcedir, ui)
+        content = b''.join(stream.as_bytes())
+        source = BytesIO(content)
+        replay = journals.FromFileGenerator(source, ui)
+        file_stream = []
+        for item in replay.stream():
+            item.ignore_file()
+
 
 class TestReplayGenerator(ResourcedTestCase):
 
@@ -382,6 +466,28 @@ class TestReplayGenerator(ResourcedTestCase):
         content = ''.join(content)
         expected = 'new\x00new\x00file\x00c129b324aee662b04eccf68babba85851346dff9\x008\x00None\x0012341234abc\x00replace\x00file\x0012039d6dd9a7e27622301e935b6eefc78846802e\x003\x00None\x00file\x005a78babbb162531b3a16c55310a4e7228d68f2e9\x0012\x00None\x00123412341234bye\x00del\x00file\x00d\x002\x00None\x00'
         self.assertEqual(expected, content)
+
+    def test_ignorable(self):
+        # Any sort of update can be ignored.
+        basedir = get_transport(self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        basedir.put_bytes('abc', 'def')
+        basedir.put_bytes('bye', 'by')
+        sourcedir = basedir.clone('../source')
+        sourcedir.create_prefix()
+        sourcedir.put_bytes('abc', '123412341234')
+        sourcedir.put_bytes('new', '12341234')
+        j1 = journals.Journal()
+        j1.add('abc', 'replace', (
+            journals.FileContent('12039d6dd9a7e27622301e935b6eefc78846802e', 3, None),
+            journals.FileContent('5a78babbb162531b3a16c55310a4e7228d68f2e9', 12, None)))
+        j1.add('bye', 'del', journals.FileContent('d', 2, None))
+        j1.add('new', 'new',
+            journals.FileContent('c129b324aee662b04eccf68babba85851346dff9', 8, None))
+        ui = UI()
+        stream = journals.ReplayGenerator(j1, sourcedir, ui)
+        for item in stream.stream():
+            item.ignore_file()
 
 
 class TestParser(ResourcedTestCase):
