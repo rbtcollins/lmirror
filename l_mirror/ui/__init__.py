@@ -105,7 +105,7 @@ class AbstractUI(object):
 
         :param level: How important the message is to show. 1 is not at all
             urgent, 9 is as urgent as it gets. Most UI's will show 5 and above
-            by default. The CLI UI logs levels 8 and 9 only to
+            by default. The CLI UI logs levels 3 and up to
             ~/.cache/lmirror/log.
         :param section: A free text string for categorisation, can be used by
             UI's to do per-section levels (but none do so today).
