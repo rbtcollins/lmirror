@@ -959,7 +959,13 @@ class CancellableDelete:
             if self.content.kind != 'dir':
                 self.contentdir.delete(self.path)
             else:
-                self.contentdir.rmdir(self.path)
+                try:
+                    self.contentdir.rmdir(self.path)
+                except errors.DirectoryNotEmpty:
+                    self.ui.output_log(
+                        7, __name__,
+                        'Deleting excess files in directory %s' % self.path)
+                    self.contentdir.delete_tree(self.path)
         except errors.NoSuchFile:
             # Already gone, ignore it.
             pass

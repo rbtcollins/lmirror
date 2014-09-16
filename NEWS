@@ -8,6 +8,9 @@ NEXT (in development)
 Bug fixes
 +++++++++
 
+* Deleting directories that have unexpected files in them will now succeed
+  with a note logged to the console. (Robert Collins)
+
 * If a filesystem returns an mtime of 0 - which some VFS ones will, then
   files are considered for changes rather than short circuiting. Fixes
   some test code capabilities only. (Robert Collins)

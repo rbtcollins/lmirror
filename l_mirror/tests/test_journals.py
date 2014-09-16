@@ -26,7 +26,7 @@ import time
 
 from bzrlib.transport import get_transport
 from bzrlib.transport.memory import MemoryServer
-
+from fixtures import MonkeyPatch
 from testtools.matchers import DocTestMatches
 
 from l_mirror import journals
@@ -380,6 +380,38 @@ class TestTransportReplay(ResourcedTestCase):
             ('get', 'abc'),
             ],
             basedir._activity)
+
+    def test_excess_files_on_delete_directory(self):
+        # bzrlib.trace doesn't trace delete_tree
+        def delete_tree(self, relpath):
+            self._activity.append(('delete_tree', relpath))
+            return self._decorated.delete(relpath)
+        self.useFixture(MonkeyPatch(
+            'bzrlib.transport.trace.TransportTraceDecorator.delete_tree',
+            delete_tree))
+        basedir = get_transport('trace+' + self.setup_memory()).clone('path')
+        basedir.create_prefix()
+        subdir = basedir.clone('dir')
+        subdir.create_prefix()
+        subdir.put_bytes('abc', 'def')
+        sourcedir = basedir.clone('../source')
+        sourcedir.create_prefix()
+        j1 = journals.Journal()
+        # TODO: we need to set mtime to something different - in a new test,
+        # but that needs VFS improvements, or real files, or mocks or smething.
+        j1.add('dir', 'del', journals.DirContent())
+        del basedir._activity[:]
+        ui = UI()
+        generator = journals.ReplayGenerator(j1, sourcedir, ui)
+        replay = journals.TransportReplay(j1, generator, basedir, ui)
+        replay.replay()
+        self.assertEqual(
+            [('rmdir', 'dir'), ('delete_tree', 'dir')],
+            basedir._activity)
+        self.assertEqual([
+            ('log', 7, 'l_mirror.journals',
+             'Deleting excess files in directory dir'),
+            ], ui.outputs)
 
 
 class TestFromFileGenerator(ResourcedTestCase):
